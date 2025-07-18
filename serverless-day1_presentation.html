@@ -1,0 +1,2415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developing Serverless Solutions on AWS - Day 1</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #232F3E 0%, #131A22 100%);
+            color: white;
+            overflow: hidden;
+        }
+
+        .reveal {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .slides {
+            width: 100%;
+            height: 100%;
+        }
+
+        .slide {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            padding: 50px 60px;
+            box-sizing: border-box;
+            justify-content: center;
+            align-items: flex-start;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .slide.active {
+            display: flex;
+        }
+
+        .slide h1 {
+            font-size: 3.2em;
+            margin: 0 0 25px 0;
+            background: linear-gradient(45deg, #FF9900, #FFAD33);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .slide h2 {
+            font-size: 2.4em;
+            margin: 0 0 30px 0;
+            color: #FF9900;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .slide h3 {
+            font-size: 1.8em;
+            margin: 0 0 20px 0;
+            color: #FFAD33;
+            font-weight: 500;
+        }
+
+        .slide h4 {
+            font-size: 1.4em;
+            margin: 0 0 15px 0;
+            color: #FFD700;
+            font-weight: 500;
+        }
+
+        .slide p, .slide li {
+            font-size: 1.1em;
+            line-height: 1.5;
+            margin: 0 0 12px 0;
+            color: #E6E6E6;
+        }
+
+        .slide ul {
+            margin: 0 0 20px 0;
+            padding-left: 25px;
+        }
+
+        .slide li {
+            margin: 0 0 10px 0;
+        }
+
+        .highlight {
+            background: linear-gradient(45deg, #FF9900, #FFAD33);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 600;
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 15px 0;
+            overflow-x: auto;
+            color: #00FF88;
+        }
+
+        .two-column {
+            display: flex;
+            gap: 40px;
+            width: 100%;
+            align-items: flex-start;
+        }
+
+        .column {
+            flex: 1;
+        }
+
+        .service-box {
+            background: rgba(255, 153, 0, 0.1);
+            border: 2px solid #FF9900;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 12px 0;
+            text-align: center;
+        }
+
+        .service-box h4 {
+            margin: 0 0 12px 0;
+            color: #FF9900;
+            font-size: 1.3em;
+        }
+
+        .service-box p {
+            margin: 0;
+            font-size: 1.0em;
+            line-height: 1.3;
+        }
+
+        .lab-callout {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .lab-callout h3 {
+            color: white;
+            margin: 0 0 15px 0;
+            font-size: 2.0em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .lab-callout p {
+            color: white;
+            margin: 0;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+
+        .architecture-diagram {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid #FF9900;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+        }
+
+        .diagram-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 15px 0;
+        }
+
+        .diagram-box {
+            background: linear-gradient(135deg, #FF9900, #FFAD33);
+            color: #232F3E;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.0em;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .arrow {
+            font-size: 1.5em;
+            color: #FF9900;
+            margin: 0 8px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.95em;
+        }
+
+        .comparison-table th {
+            background: linear-gradient(135deg, #FF9900, #FFAD33);
+            color: #232F3E;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .comparison-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #555;
+            vertical-align: top;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: rgba(255, 153, 0, 0.05);
+        }
+
+        .navigation {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 1000;
+        }
+
+        .nav-button {
+            background: linear-gradient(135deg, #FF9900, #FFAD33);
+            color: #232F3E;
+            border: none;
+            padding: 12px 20px;
+            margin: 0 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.0em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
+        }
+
+        .nav-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-size: 0.95em;
+            color: #FF9900;
+        }
+
+        .title-slide {
+            align-items: center;
+            text-align: center;
+            background: radial-gradient(circle at center, #232F3E 0%, #0B0E14 100%);
+        }
+
+        .title-slide h1 {
+            font-size: 3.8em;
+            margin-bottom: 25px;
+        }
+
+        .title-slide .subtitle {
+            font-size: 1.8em;
+            color: #FFAD33;
+            margin: 25px 0;
+            font-weight: 400;
+        }
+
+        .title-slide .date {
+            font-size: 1.3em;
+            color: #999;
+            margin-top: 30px;
+        }
+
+        .session-header {
+            background: linear-gradient(90deg, #FF9900, #FFAD33);
+            color: #232F3E;
+            padding: 12px 25px;
+            margin: -50px -60px 30px -60px;
+            font-size: 1.4em;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .bullet-point {
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .bullet-point::before {
+            content: "▶";
+            position: absolute;
+            left: 0;
+            color: #FF9900;
+            font-size: 1.0em;
+        }
+
+        .key-concept {
+            background: rgba(255, 153, 0, 0.1);
+            border-left: 4px solid #FF9900;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .key-concept h4 {
+            margin-top: 0;
+            color: #FF9900;
+        }
+
+        .break-slide {
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(45deg, #232F3E 0%, #3E4F66 50%, #232F3E 100%);
+        }
+
+        .break-slide h2 {
+            font-size: 3.2em;
+            margin-bottom: 25px;
+        }
+
+        .break-slide p {
+            font-size: 1.4em;
+            color: #FFAD33;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .feature-item {
+            background: rgba(255, 153, 0, 0.08);
+            border: 1px solid #FF9900;
+            border-radius: 6px;
+            padding: 15px;
+        }
+
+        .feature-item h4 {
+            margin-top: 0;
+            color: #FF9900;
+            font-size: 1.2em;
+        }
+
+        .step-by-step {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .step-by-step h4 {
+            color: #FF9900;
+            margin-top: 0;
+        }
+
+        .step-by-step ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .step-by-step li {
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 1200px) {
+            .slide {
+                padding: 30px 40px;
+            }
+            
+            .slide h1 {
+                font-size: 2.8em;
+            }
+            
+            .slide h2 {
+                font-size: 2.0em;
+            }
+            
+            .slide p, .slide li {
+                font-size: 1.0em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            <!-- Slide 1: Title -->
+            <div class="slide active title-slide">
+                <h1>Developing Serverless Solutions on AWS</h1>
+                <div class="subtitle">Day 1: Foundations and API Development</div>
+                <div class="date">Comprehensive Course Introduction and Hands-On Implementation</div>
+            </div>
+
+            <!-- Slide 2: Welcome and Course Overview -->
+            <div class="slide">
+                <div class="session-header">Welcome and Course Overview</div>
+                <h2>Course Introduction</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Welcome Activities</h3>
+                        <ul>
+                            <li class="bullet-point">Participant introductions and background</li>
+                            <li class="bullet-point">Experience with AWS and serverless technologies</li>
+                            <li class="bullet-point">Learning goals and expectations</li>
+                            <li class="bullet-point">Course structure and methodology</li>
+                        </ul>
+                        
+                        <h3>Resource Access Setup</h3>
+                        <ul>
+                            <li class="bullet-point">Student Guide distribution and overview</li>
+                            <li class="bullet-point">Lab Guide access and navigation</li>
+                            <li class="bullet-point">Online Course Supplement materials</li>
+                            <li class="bullet-point">Additional reference documentation</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>AWS Account Access</h3>
+                        <ul>
+                            <li class="bullet-point">AWS Console login credentials</li>
+                            <li class="bullet-point">Username assignment (user1, user2, user3...)</li>
+                            <li class="bullet-point">Resource naming conventions</li>
+                            <li class="bullet-point">Shared environment guidelines</li>
+                        </ul>
+                        
+                        <div class="key-concept">
+                            <h4>Important Note</h4>
+                            <p>All resources must be prefixed with your assigned username to prevent conflicts in the shared AWS environment</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 3: Course Objectives -->
+            <div class="slide">
+                <h2>Comprehensive Course Objectives</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h4>Serverless Mastery</h4>
+                        <p>Develop expertise in AWS Lambda, API Gateway, and serverless application patterns</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Event-Driven Architecture</h4>
+                        <p>Implement scalable, loosely-coupled systems using EventBridge, SNS, and SQS</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Security Integration</h4>
+                        <p>Build secure APIs with Cognito authentication, IAM policies, and encryption</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Infrastructure as Code</h4>
+                        <p>Deploy applications using AWS SAM, Terraform, and CloudFormation</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Monitoring & Debugging</h4>
+                        <p>Implement comprehensive observability with CloudWatch and X-Ray</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Production Readiness</h4>
+                        <p>Apply performance optimization, cost management, and operational excellence</p>
+                    </div>
+                </div>
+                
+                <div class="key-concept">
+                    <h4>Learning Methodology</h4>
+                    <p>Hands-on labs with real AWS services, collaborative problem-solving, and practical implementation of enterprise-grade serverless solutions</p>
+                </div>
+            </div>
+
+            <!-- Slide 4: 3-Day Learning Journey -->
+            <div class="slide">
+                <h2>Detailed 3-Day Learning Journey</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <div class="service-box">
+                            <h4>Day 1: Foundations and API Development</h4>
+                            <p><strong>Morning:</strong> Serverless concepts, Lambda basics, API Gateway integration</p>
+                            <p><strong>Afternoon:</strong> Authentication with Cognito, Infrastructure as Code, EventBridge patterns</p>
+                        </div>
+                        
+                        <div class="service-box">
+                            <h4>Day 2: Advanced Integration Patterns</h4>
+                            <p><strong>Morning:</strong> Queue and stream processing, DynamoDB integration, error handling</p>
+                            <p><strong>Afternoon:</strong> Step Functions workflows, performance optimization, cost management</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="service-box">
+                            <h4>Day 3: Production and Enterprise</h4>
+                            <p><strong>Morning:</strong> Monitoring, debugging, X-Ray tracing, CloudWatch integration</p>
+                            <p><strong>Afternoon:</strong> Group project - collaborative enterprise application development</p>
+                        </div>
+                        
+                        <div class="service-box">
+                            <h4>Course Resources</h4>
+                            <p>Comprehensive documentation, hands-on lab guides, AWS best practices, reference architectures</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 5: Module 1 Introduction -->
+            <div class="slide">
+                <div class="session-header">Module 1: Thinking Serverless</div>
+                <h2>Introduction to Serverless Computing</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>What is Serverless?</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">No server management</span> - Focus on code, not infrastructure</li>
+                            <li class="bullet-point"><span class="highlight">Automatic scaling</span> - Scale from zero to thousands of requests</li>
+                            <li class="bullet-point"><span class="highlight">Pay-per-use</span> - Only pay for actual compute time</li>
+                            <li class="bullet-point"><span class="highlight">Built-in availability</span> - High availability and fault tolerance</li>
+                        </ul>
+                        
+                        <h3>Serverless vs Traditional</h3>
+                        <ul>
+                            <li class="bullet-point">Reduced operational overhead</li>
+                            <li class="bullet-point">Faster time to market</li>
+                            <li class="bullet-point">Improved cost efficiency</li>
+                            <li class="bullet-point">Enhanced developer productivity</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Serverless Computing Benefits</h3>
+                        <div class="feature-item">
+                            <h4>Cost Optimization</h4>
+                            <p>Pay only for requests and compute time used - no idle server costs</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Automatic Scaling</h4>
+                            <p>Handle any number of requests without capacity planning</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Faster Development</h4>
+                            <p>Focus on business logic instead of infrastructure management</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 6: Modern Serverless Best Practices -->
+            <div class="slide">
+                <h2>Modern Serverless Application Best Practices</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Architecture Principles</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Single Responsibility</span> - Each function has one clear purpose</li>
+                            <li class="bullet-point"><span class="highlight">Stateless Design</span> - No persistent state between invocations</li>
+                            <li class="bullet-point"><span class="highlight">Event-Driven</span> - React to events rather than polling</li>
+                            <li class="bullet-point"><span class="highlight">Microservices</span> - Small, independent, loosely coupled services</li>
+                        </ul>
+                        
+                        <h3>Development Best Practices</h3>
+                        <ul>
+                            <li class="bullet-point">Keep functions small and focused</li>
+                            <li class="bullet-point">Minimize cold start impacts</li>
+                            <li class="bullet-point">Use appropriate memory allocation</li>
+                            <li class="bullet-point">Implement proper error handling</li>
+                            <li class="bullet-point">Apply security by design</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Design Patterns</h3>
+                        <div class="feature-item">
+                            <h4>Fan-Out Pattern</h4>
+                            <p>Single event triggers multiple independent processing functions</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Aggregator Pattern</h4>
+                            <p>Collect and combine data from multiple sources</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Circuit Breaker</h4>
+                            <p>Prevent cascading failures with automatic fallback mechanisms</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Saga Pattern</h4>
+                            <p>Manage distributed transactions across multiple services</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 7: Event-Driven Design Principles -->
+            <div class="slide">
+                <h2>Event-Driven Design Principles</h2>
+                <div class="architecture-diagram">
+                    <h3>Event-Driven Architecture Flow</h3>
+                    <div class="diagram-flow">
+                        <div class="diagram-box">Event Producer</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Event Router</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Event Consumer</div>
+                    </div>
+                    <div class="diagram-flow">
+                        <div class="diagram-box">API Gateway</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">EventBridge</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Lambda Functions</div>
+                    </div>
+                </div>
+                
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Core Event Concepts</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Events</span> - Immutable facts about what happened</li>
+                            <li class="bullet-point"><span class="highlight">Event Producers</span> - Services that publish events</li>
+                            <li class="bullet-point"><span class="highlight">Event Consumers</span> - Services that react to events</li>
+                            <li class="bullet-point"><span class="highlight">Event Routing</span> - Intelligent event distribution</li>
+                        </ul>
+                        
+                        <h3>Event-Driven Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Loose coupling between services</li>
+                            <li class="bullet-point">Independent scaling and deployment</li>
+                            <li class="bullet-point">Improved fault tolerance</li>
+                            <li class="bullet-point">Real-time processing capabilities</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Event Types</h3>
+                        <div class="feature-item">
+                            <h4>Domain Events</h4>
+                            <p>Business-significant occurrences like "Order Placed" or "Payment Processed"</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>System Events</h4>
+                            <p>Technical events like file uploads, database changes, or API calls</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Integration Events</h4>
+                            <p>Events used for communication between bounded contexts</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 8: AWS Services for Event-Driven Serverless -->
+            <div class="slide">
+                <h2>AWS Services Supporting Event-Driven Serverless</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h4>AWS Lambda</h4>
+                        <p>Event-driven compute service for running code without managing servers</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Amazon API Gateway</h4>
+                        <p>Fully managed service for creating, deploying, and managing APIs</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Amazon EventBridge</h4>
+                        <p>Serverless event bus for application integration and event routing</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Amazon SQS</h4>
+                        <p>Fully managed message queuing service for decoupling components</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Amazon SNS</h4>
+                        <p>Pub/sub messaging service for fan-out scenarios</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Amazon DynamoDB</h4>
+                        <p>NoSQL database with built-in event streaming capabilities</p>
+                    </div>
+                </div>
+                
+                <div class="key-concept">
+                    <h4>Service Integration</h4>
+                    <p>These services work together seamlessly to create powerful event-driven architectures with automatic scaling, high availability, and pay-per-use pricing</p>
+                </div>
+            </div>
+
+            <!-- Slide 9: Module 2 Introduction -->
+            <div class="slide">
+                <div class="session-header">Module 2: API-Driven Development</div>
+                <h2>Synchronous Event Sources Overview</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Synchronous vs Asynchronous</h3>
+                        <div class="key-concept">
+                            <h4>Synchronous Processing</h4>
+                            <p><span class="highlight">Request-Response Pattern</span> - Client waits for immediate response from server</p>
+                        </div>
+                        <div class="key-concept">
+                            <h4>Asynchronous Processing</h4>
+                            <p><span class="highlight">Fire-and-Forget Pattern</span> - Client sends request and continues without waiting</p>
+                        </div>
+                        
+                        <h3>When to Use Synchronous</h3>
+                        <ul>
+                            <li class="bullet-point">User-facing APIs requiring immediate response</li>
+                            <li class="bullet-point">Real-time data retrieval</li>
+                            <li class="bullet-point">Interactive web applications</li>
+                            <li class="bullet-point">Mobile app backends</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>API-Driven Development Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Clear interface contracts</li>
+                            <li class="bullet-point">Technology-agnostic integration</li>
+                            <li class="bullet-point">Independent team development</li>
+                            <li class="bullet-point">Easier testing and debugging</li>
+                            <li class="bullet-point">Better documentation and discovery</li>
+                        </ul>
+                        
+                        <h3>Standard Request/Response Flow</h3>
+                        <div class="step-by-step">
+                            <h4>API Request Lifecycle</h4>
+                            <ol>
+                                <li>Client sends HTTP request to API Gateway</li>
+                                <li>API Gateway validates and transforms request</li>
+                                <li>Lambda function processes business logic</li>
+                                <li>Response returned through API Gateway</li>
+                                <li>Client receives formatted response</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 10: Amazon API Gateway Deep Dive -->
+            <div class="slide">
+                <h2>Amazon API Gateway Integration with Serverless</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>API Gateway Core Features</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Request/Response Transformation</span> - Modify data format</li>
+                            <li class="bullet-point"><span class="highlight">Authentication & Authorization</span> - Secure API access</li>
+                            <li class="bullet-point"><span class="highlight">Rate Limiting & Throttling</span> - Control request volume</li>
+                            <li class="bullet-point"><span class="highlight">Caching</span> - Improve performance and reduce costs</li>
+                            <li class="bullet-point"><span class="highlight">Monitoring & Logging</span> - Track API usage and performance</li>
+                        </ul>
+                        
+                        <h3>Integration Types</h3>
+                        <ul>
+                            <li class="bullet-point"><strong>Lambda Proxy:</strong> Direct Lambda integration</li>
+                            <li class="bullet-point"><strong>Lambda Custom:</strong> Transform request/response</li>
+                            <li class="bullet-point"><strong>HTTP Proxy:</strong> Forward to HTTP endpoints</li>
+                            <li class="bullet-point"><strong>AWS Service:</strong> Direct AWS service integration</li>
+                            <li class="bullet-point"><strong>Mock:</strong> Return static responses</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>API Gateway Request Processing</h3>
+                        <div class="step-by-step">
+                            <h4>Request Flow</h4>
+                            <ol>
+                                <li>Receive and validate HTTP request</li>
+                                <li>Apply authorization and authentication</li>
+                                <li>Check rate limits and quotas</li>
+                                <li>Transform request if needed</li>
+                                <li>Route to backend integration</li>
+                                <li>Process backend response</li>
+                                <li>Transform response if needed</li>
+                                <li>Return response to client</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="feature-item">
+                            <h4>Try-it-out Exercise</h4>
+                            <p>Create HTTP API endpoint with Lambda function integration using the AWS Console</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 11: API Types Comparison -->
+            <div class="slide">
+                <h2>API Gateway Types Comparison</h2>
+                <table class="comparison-table">
+                    <tr>
+                        <th>Feature</th>
+                        <th>REST API</th>
+                        <th>HTTP API</th>
+                        <th>WebSocket API</th>
+                        <th>GraphQL</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Protocol</strong></td>
+                        <td>HTTP/HTTPS</td>
+                        <td>HTTP/HTTPS</td>
+                        <td>WebSocket</td>
+                        <td>HTTP/HTTPS</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Performance</strong></td>
+                        <td>Feature-rich, slower</td>
+                        <td>Fast, optimized</td>
+                        <td>Real-time, persistent</td>
+                        <td>Flexible, efficient</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cost</strong></td>
+                        <td>Higher (more features)</td>
+                        <td>Lower (up to 70% less)</td>
+                        <td>Based on connections</td>
+                        <td>Query-based pricing</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Features</strong></td>
+                        <td>Full feature set</td>
+                        <td>Essential features only</td>
+                        <td>Real-time communication</td>
+                        <td>Single endpoint</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Use Cases</strong></td>
+                        <td>Enterprise APIs</td>
+                        <td>Simple, fast APIs</td>
+                        <td>Chat, gaming, live updates</td>
+                        <td>Data aggregation</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Caching</strong></td>
+                        <td>Built-in caching</td>
+                        <td>No built-in caching</td>
+                        <td>Not applicable</td>
+                        <td>Query-level caching</td>
+                    </tr>
+                </table>
+                
+                <div class="key-concept">
+                    <h4>Selection Criteria</h4>
+                    <p>Choose based on performance requirements, feature needs, cost constraints, and communication patterns</p>
+                </div>
+            </div>
+
+            <!-- Slide 12: Lab 1 Introduction -->
+            <div class="slide">
+                <h2>Hands-On Implementation: Your First Serverless API</h2>
+                <div class="lab-callout">
+                    <h3>🚀 Lab 1: Deploying a Simple Serverless Application</h3>
+                    <p>Build your first serverless application with Lambda and API Gateway</p>
+                </div>
+                
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Lab Architecture</h3>
+                        <div class="architecture-diagram">
+                            <div class="diagram-flow">
+                                <div class="diagram-box">Client</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">API Gateway</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">Lambda</div>
+                            </div>
+                        </div>
+                        
+                        <h3>What You'll Build</h3>
+                        <ul>
+                            <li class="bullet-point">Python Lambda function with event processing</li>
+                            <li class="bullet-point">API Gateway REST API with proper integration</li>
+                            <li class="bullet-point">JSON response handling and error management</li>
+                            <li class="bullet-point">CloudWatch logging and monitoring setup</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Key Learning Outcomes</h3>
+                        <ul>
+                            <li class="bullet-point">Understand Lambda function structure and event handling</li>
+                            <li class="bullet-point">Configure API Gateway REST API with Lambda integration</li>
+                            <li class="bullet-point">Implement proper HTTP response formatting</li>
+                            <li class="bullet-point">Apply username prefixing for shared environments</li>
+                            <li class="bullet-point">Use AWS CLI for resource management</li>
+                            <li class="bullet-point">Navigate CloudWatch for monitoring and debugging</li>
+                        </ul>
+                        
+                        <h3>Technical Skills Developed</h3>
+                        <ul>
+                            <li class="bullet-point">AWS Lambda function deployment</li>
+                            <li class="bullet-point">API Gateway configuration and testing</li>
+                            <li class="bullet-point">IAM role and permission management</li>
+                            <li class="bullet-point">HTTP API design and implementation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 13: Lab 1 Detailed Implementation -->
+            <div class="slide">
+                <h2>Lab 1: Step-by-Step Implementation</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Task 1: Cloud9 Environment Setup</h3>
+                        <div class="step-by-step">
+                            <ol>
+                                <li>Access AWS Cloud9 service</li>
+                                <li>Create development environment</li>
+                                <li>Configure environment settings</li>
+                                <li>Verify AWS CLI access and permissions</li>
+                            </ol>
+                        </div>
+                        
+                        <h3>Task 2: Lambda Function Creation</h3>
+                        <div class="code-block">
+def lambda_handler(event, context):
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Content-Type': 'application/json'
+        },
+        'body': json.dumps({
+            'greeting': 'Hello from serverless!',
+            'timestamp': datetime.now().isoformat()
+        })
+    }
+                        </div>
+                    </div>
+                    <div class="column">
+                        <h3>Task 3: API Gateway Configuration</h3>
+                        <div class="step-by-step">
+                            <ol>
+                                <li>Create REST API</li>
+                                <li>Configure resources and methods</li>
+                                <li>Set up Lambda integration</li>
+                                <li>Deploy API to stage</li>
+                                <li>Test endpoint functionality</li>
+                            </ol>
+                        </div>
+                        
+                        <h3>Task 4: Testing and Validation</h3>
+                        <ul>
+                            <li class="bullet-point">Test API using cURL commands</li>
+                            <li class="bullet-point">Verify JSON response format</li>
+                            <li class="bullet-point">Check CloudWatch logs</li>
+                            <li class="bullet-point">Monitor function execution metrics</li>
+                        </ul>
+                        
+                        <div class="feature-item">
+                            <h4>Expected Outcome</h4>
+                            <p>Working serverless API that returns JSON responses with proper HTTP status codes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 14: Break -->
+            <div class="slide break-slide">
+                <h2>☕ Break</h2>
+                <p>15 minutes</p>
+                <p style="font-size: 1.0em; margin-top: 20px;">Networking and Q&A</p>
+            </div>
+
+            <!-- Slide 15: Module 3 Introduction -->
+            <div class="slide">
+                <div class="session-header">Module 3: Authentication, Authorization, and Access Control</div>
+                <h2>Security Fundamentals in Serverless Applications</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Security Importance</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Data Protection</span> - Safeguard sensitive information</li>
+                            <li class="bullet-point"><span class="highlight">Compliance</span> - Meet regulatory requirements</li>
+                            <li class="bullet-point"><span class="highlight">Trust</span> - Build user and customer confidence</li>
+                            <li class="bullet-point"><span class="highlight">Business Continuity</span> - Prevent security breaches</li>
+                        </ul>
+                        
+                        <h3>Serverless Security Challenges</h3>
+                        <ul>
+                            <li class="bullet-point">Distributed architecture complexity</li>
+                            <li class="bullet-point">Function-level security granularity</li>
+                            <li class="bullet-point">Event source authentication</li>
+                            <li class="bullet-point">Cross-service communication security</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Security Layers</h3>
+                        <div class="feature-item">
+                            <h4>Infrastructure Security</h4>
+                            <p>AWS-managed infrastructure, VPC isolation, network security</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Identity & Access Management</h4>
+                            <p>IAM roles, policies, and least privilege principles</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Application Security</h4>
+                            <p>Input validation, output encoding, secure coding practices</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Data Security</h4>
+                            <p>Encryption at rest, in transit, and key management</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 16: Authentication vs Authorization -->
+            <div class="slide">
+                <h2>Understanding Authentication vs Authorization</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>Authentication: "Who are you?"</h4>
+                            <p><span class="highlight">Identity verification</span> - Confirming user identity through credentials, tokens, or biometric data</p>
+                        </div>
+                        
+                        <h3>Authentication Methods</h3>
+                        <ul>
+                            <li class="bullet-point"><strong>Username/Password:</strong> Traditional credential-based</li>
+                            <li class="bullet-point"><strong>Multi-Factor Authentication:</strong> Additional security layers</li>
+                            <li class="bullet-point"><strong>OAuth/OpenID Connect:</strong> Token-based authentication</li>
+                            <li class="bullet-point"><strong>JWT Tokens:</strong> Self-contained authentication tokens</li>
+                            <li class="bullet-point"><strong>API Keys:</strong> Simple application authentication</li>
+                            <li class="bullet-point"><strong>Certificate-based:</strong> PKI infrastructure authentication</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>Authorization: "What can you do?"</h4>
+                            <p><span class="highlight">Access control</span> - Determining user permissions and resource access rights after authentication</p>
+                        </div>
+                        
+                        <h3>Authorization Models</h3>
+                        <ul>
+                            <li class="bullet-point"><strong>Role-Based Access Control (RBAC):</strong> Permissions based on roles</li>
+                            <li class="bullet-point"><strong>Attribute-Based Access Control (ABAC):</strong> Dynamic permissions</li>
+                            <li class="bullet-point"><strong>Resource-Based Policies:</strong> Direct resource permissions</li>
+                            <li class="bullet-point"><strong>Fine-Grained Permissions:</strong> Specific action-level control</li>
+                        </ul>
+                        
+                        <div class="feature-item">
+                            <h4>Best Practice</h4>
+                            <p>Implement both authentication and authorization for comprehensive security</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 17: API Gateway Authentication Options -->
+            <div class="slide">
+                <h2>API Gateway Authentication Options</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h4>AWS IAM</h4>
+                        <p>Use AWS credentials and IAM policies for authentication and authorization</p>
+                        <ul style="font-size: 0.9em; margin-top: 10px;">
+                            <li>AWS Signature Version 4 signing</li>
+                            <li>Fine-grained IAM policies</li>
+                            <li>Cross-account access support</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Cognito User Pools</h4>
+                        <p>Managed user authentication with JWT token validation</p>
+                        <ul style="font-size: 0.9em; margin-top: 10px;">
+                            <li>User registration and sign-in</li>
+                            <li>Social identity providers</li>
+                            <li>Multi-factor authentication</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Lambda Authorizers</h4>
+                        <p>Custom authorization logic using Lambda functions</p>
+                        <ul style="font-size: 0.9em; margin-top: 10px;">
+                            <li>Token-based authorization</li>
+                            <li>Request-based authorization</li>
+                            <li>Custom business logic</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <h4>API Keys</h4>
+                        <p>Simple key-based access control for applications</p>
+                        <ul style="font-size: 0.9em; margin-top: 10px;">
+                            <li>Usage plans and quotas</li>
+                            <li>Rate limiting and throttling</li>
+                            <li>Simple client identification</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="key-concept">
+                    <h4>Selection Criteria</h4>
+                    <p>Choose authentication method based on security requirements, user management needs, and integration complexity</p>
+                </div>
+            </div>
+
+            <!-- Slide 18: Amazon Cognito Overview -->
+            <div class="slide">
+                <h2>Amazon Cognito in Serverless Applications</h2>
+                <div class="architecture-diagram">
+                    <h3>Cognito Integration Architecture</h3>
+                    <div class="diagram-flow">
+                        <div class="diagram-box">Mobile/Web App</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Cognito User Pool</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">API Gateway</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Lambda</div>
+                    </div>
+                </div>
+                
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Amazon Cognito Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Fully managed user management service</li>
+                            <li class="bullet-point">Scales to millions of users automatically</li>
+                            <li class="bullet-point">Built-in security best practices</li>
+                            <li class="bullet-point">Integration with social identity providers</li>
+                            <li class="bullet-point">Customizable authentication flows</li>
+                            <li class="bullet-point">Comprehensive SDK support</li>
+                        </ul>
+                        
+                        <h3>Cognito Features</h3>
+                        <ul>
+                            <li class="bullet-point">User registration and email verification</li>
+                            <li class="bullet-point">Password reset and change functionality</li>
+                            <li class="bullet-point">Multi-factor authentication (MFA)</li>
+                            <li class="bullet-point">Custom user attributes</li>
+                            <li class="bullet-point">Advanced security features</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>JWT Token Structure</h3>
+                        <div class="code-block">
+{
+  "header": {
+    "alg": "RS256",
+    "typ": "JWT"
+  },
+  "payload": {
+    "sub": "user-id",
+    "email": "user@example.com",
+    "exp": 1640995200,
+    "iat": 1640991600
+  },
+  "signature": "encrypted-signature"
+}
+                        </div>
+                        
+                        <h3>Token Validation Process</h3>
+                        <div class="step-by-step">
+                            <ol>
+                                <li>Client sends JWT token in Authorization header</li>
+                                <li>API Gateway validates token signature</li>
+                                <li>Check token expiration and issuer</li>
+                                <li>Extract user claims from token payload</li>
+                                <li>Allow or deny request based on validation</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 19: User Pools vs Identity Pools -->
+            <div class="slide">
+                <h2>Cognito User Pools vs Federated Identity Pools</h2>
+                <table class="comparison-table">
+                    <tr>
+                        <th>Feature</th>
+                        <th>User Pools</th>
+                        <th>Identity Pools (Federated)</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Primary Purpose</strong></td>
+                        <td>User authentication and management</td>
+                        <td>AWS credentials for authenticated/anonymous users</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Authentication</strong></td>
+                        <td>Built-in user directory</td>
+                        <td>Federated identity providers</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Output</strong></td>
+                        <td>JWT tokens (ID, Access, Refresh)</td>
+                        <td>Temporary AWS credentials</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Use Cases</strong></td>
+                        <td>API Gateway authorization, user management</td>
+                        <td>Direct AWS service access, mobile apps</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Identity Providers</strong></td>
+                        <td>Amazon, Facebook, Google, SAML, OIDC</td>
+                        <td>User Pools, Amazon, Facebook, Google, SAML</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Anonymous Access</strong></td>
+                        <td>Not supported</td>
+                        <td>Supported with guest credentials</td>
+                    </tr>
+                </table>
+                
+                <div class="key-concept">
+                    <h4>Integration Pattern</h4>
+                    <p>Often used together: User Pools for authentication, Identity Pools for AWS resource access with fine-grained IAM permissions</p>
+                </div>
+            </div>
+
+            <!-- Slide 20: Module 4 Introduction -->
+            <div class="slide">
+                <div class="session-header">Module 4: Serverless Deployment Frameworks</div>
+                <h2>Infrastructure as Code Fundamentals</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Traditional vs Infrastructure as Code</h3>
+                        <div class="feature-item">
+                            <h4>Manual Infrastructure Management</h4>
+                            <p>Console clicks, undocumented changes, configuration drift, inconsistent environments</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Infrastructure as Code</h4>
+                            <p>Version-controlled templates, repeatable deployments, consistent environments, automated provisioning</p>
+                        </div>
+                        
+                        <h3>IaC Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Consistency across environments</li>
+                            <li class="bullet-point">Version control and change tracking</li>
+                            <li class="bullet-point">Automated deployment pipelines</li>
+                            <li class="bullet-point">Reduced human error</li>
+                            <li class="bullet-point">Faster environment provisioning</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Imperative vs Declarative Programming</h3>
+                        <div class="key-concept">
+                            <h4>Imperative Approach</h4>
+                            <p><span class="highlight">"How to do it"</span> - Step-by-step instructions specifying the exact process</p>
+                        </div>
+                        <div class="code-block">
+# Imperative Example
+aws lambda create-function ...
+aws apigateway create-rest-api ...
+aws apigateway create-resource ...
+                        </div>
+                        
+                        <div class="key-concept">
+                            <h4>Declarative Approach</h4>
+                            <p><span class="highlight">"What you want"</span> - Desired end state defined in templates</p>
+                        </div>
+                        <div class="code-block">
+# Declarative Example
+Resources:
+  MyFunction:
+    Type: AWS::Lambda::Function
+  MyAPI:
+    Type: AWS::ApiGateway::RestApi
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 21: Framework Comparison Deep Dive -->
+            <div class="slide">
+                <h2>Serverless Deployment Framework Detailed Comparison</h2>
+                <table class="comparison-table">
+                    <tr>
+                        <th>Framework</th>
+                        <th>Language</th>
+                        <th>Strengths</th>
+                        <th>Best Use Cases</th>
+                        <th>Learning Curve</th>
+                    </tr>
+                    <tr>
+                        <td><strong>AWS SAM</strong></td>
+                        <td>YAML/JSON</td>
+                        <td>Serverless-optimized, local testing</td>
+                        <td>Lambda-focused applications</td>
+                        <td>Low - simple syntax</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Terraform</strong></td>
+                        <td>HCL</td>
+                        <td>Multi-cloud, state management</td>
+                        <td>Complex infrastructure, multi-cloud</td>
+                        <td>Medium - new language</td>
+                    </tr>
+                    <tr>
+                        <td><strong>AWS CDK</strong></td>
+                        <td>TypeScript, Python, Java</td>
+                        <td>Programmatic, type safety</td>
+                        <td>Developer-heavy teams</td>
+                        <td>Medium - programming knowledge</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CloudFormation</strong></td>
+                        <td>YAML/JSON</td>
+                        <td>Native AWS integration</td>
+                        <td>AWS-only deployments</td>
+                        <td>Medium - verbose syntax</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Amplify</strong></td>
+                        <td>CLI/Console</td>
+                        <td>Full-stack, frontend integration</td>
+                        <td>Mobile and web applications</td>
+                        <td>Low - guided experience</td>
+                    </tr>
+                </table>
+                
+                <div class="key-concept">
+                    <h4>Selection Strategy</h4>
+                    <p>Choose based on team expertise, project complexity, multi-cloud requirements, and long-term maintenance considerations</p>
+                </div>
+            </div>
+
+            <!-- Slide 22: AWS SAM Deep Dive -->
+            <div class="slide">
+                <h2>AWS SAM (Serverless Application Model) Features</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>SAM Template Advantages</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Simplified Syntax</span> - Transform shorthand for CloudFormation</li>
+                            <li class="bullet-point"><span class="highlight">Built-in Best Practices</span> - Automatic IAM role creation</li>
+                            <li class="bullet-point"><span class="highlight">Event Source Integration</span> - Easy API Gateway, DynamoDB setup</li>
+                            <li class="bullet-point"><span class="highlight">Global Configuration</span> - Apply settings across functions</li>
+                            <li class="bullet-point"><span class="highlight">Local Development</span> - Test and debug locally</li>
+                        </ul>
+                        
+                        <h3>SAM Template Structure</h3>
+                        <div class="code-block">
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Timeout: 30
+
+Resources:
+  MyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+                        </div>
+                    </div>
+                    <div class="column">
+                        <h3>SAM CLI Capabilities</h3>
+                        <div class="feature-item">
+                            <h4>Local Development</h4>
+                            <p>Run Lambda functions and API Gateway locally using Docker containers</p>
+                        </div>
+                        
+                        <div class="code-block">
+# Key SAM CLI Commands
+sam init              # Create new project
+sam build             # Build application
+sam local start-api   # Run API locally  
+sam local invoke      # Test function locally
+sam deploy --guided   # Interactive deployment
+sam logs              # Fetch function logs
+sam delete            # Clean up resources
+                        </div>
+                        
+                        <h3>Local Testing Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Faster development cycles</li>
+                            <li class="bullet-point">Debug without AWS costs</li>
+                            <li class="bullet-point">Test event payloads locally</li>
+                            <li class="bullet-point">Simulate AWS environment</li>
+                            <li class="bullet-point">Hot reload capabilities</li>
+                        </ul>
+                        
+                        <div class="feature-item">
+                            <h4>Docker Integration</h4>
+                            <p>Uses Lambda runtime containers for accurate local simulation</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 23: Terraform for Serverless -->
+            <div class="slide">
+                <h2>Terraform for Serverless Infrastructure Management</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Terraform Core Concepts</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">State Management</span> - Track infrastructure changes</li>
+                            <li class="bullet-point"><span class="highlight">Planning</span> - Preview changes before applying</li>
+                            <li class="bullet-point"><span class="highlight">Resource Graph</span> - Dependency management</li>
+                            <li class="bullet-point"><span class="highlight">Provider Ecosystem</span> - Multi-cloud support</li>
+                            <li class="bullet-point"><span class="highlight">Modules</span> - Reusable infrastructure components</li>
+                        </ul>
+                        
+                        <h3>Terraform Workflow</h3>
+                        <div class="step-by-step">
+                            <h4>Standard Process</h4>
+                            <ol>
+                                <li><code>terraform init</code> - Initialize working directory</li>
+                                <li><code>terraform plan</code> - Create execution plan</li>
+                                <li><code>terraform apply</code> - Apply changes</li>
+                                <li><code>terraform destroy</code> - Remove infrastructure</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <h3>HCL (HashiCorp Configuration Language)</h3>
+                        <div class="code-block">
+# Terraform Lambda Function Example
+resource "aws_lambda_function" "hello_world" {
+  filename         = "function.zip"
+  function_name    = "${var.username}-hello-function"
+  role            = aws_iam_role.lambda_role.arn
+  handler         = "index.handler"
+  runtime         = "python3.9"
+  
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+}
+
+# Variables
+variable "username" {
+  description = "Username prefix"
+  type        = string
+}
+
+# Outputs
+output "function_arn" {
+  value = aws_lambda_function.hello_world.arn
+}
+                        </div>
+                        
+                        <h3>Terraform Advantages</h3>
+                        <ul>
+                            <li class="bullet-point">Immutable infrastructure patterns</li>
+                            <li class="bullet-point">Rich ecosystem of providers</li>
+                            <li class="bullet-point">Strong community support</li>
+                            <li class="bullet-point">Enterprise features available</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 24: Lab 2 Introduction -->
+            <div class="slide">
+                <h2>Infrastructure as Code Implementation</h2>
+                <div class="lab-callout">
+                    <h3>🛠️ Lab 2: Infrastructure as Code Implementation</h3>
+                    <p>Deploy serverless applications using AWS SAM and Terraform</p>
+                </div>
+                
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Lab Components</h3>
+                        <div class="architecture-diagram">
+                            <h4>Dual Implementation Approach</h4>
+                            <div class="diagram-flow">
+                                <div class="diagram-box">SAM Template</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">CloudFormation</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">AWS Resources</div>
+                            </div>
+                            <div class="diagram-flow">
+                                <div class="diagram-box">Terraform Config</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">Terraform Engine</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">AWS Resources</div>
+                            </div>
+                        </div>
+                        
+                        <h3>SAM Implementation Tasks</h3>
+                        <ul>
+                            <li class="bullet-point">Create SAM template with Globals section</li>
+                            <li class="bullet-point">Define Lambda function with API Gateway events</li>
+                            <li class="bullet-point">Configure S3 bucket for deployment artifacts</li>
+                            <li class="bullet-point">Use SAM CLI for local testing and deployment</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Terraform Implementation Tasks</h3>
+                        <ul>
+                            <li class="bullet-point">Write HCL configuration files</li>
+                            <li class="bullet-point">Define variables and outputs</li>
+                            <li class="bullet-point">Configure state management</li>
+                            <li class="bullet-point">Apply infrastructure planning and deployment</li>
+                        </ul>
+                        
+                        <h3>Comparison Analysis</h3>
+                        <ul>
+                            <li class="bullet-point">Deployment approach differences</li>
+                            <li class="bullet-point">Resource creation patterns</li>
+                            <li class="bullet-point">Local development capabilities</li>
+                            <li class="bullet-point">Maintenance and update procedures</li>
+                        </ul>
+                        
+                        <div class="key-concept">
+                            <h4>Learning Outcome</h4>
+                            <p>Understand when to use each framework based on project requirements and team preferences</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 25: Lab 2 Detailed Tasks -->
+            <div class="slide">
+                <h2>Lab 2: Detailed Implementation Steps</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>SAM Implementation Deep Dive</h3>
+                        <div class="step-by-step">
+                            <h4>Task 1: SAM Project Setup</h4>
+                            <ol>
+                                <li>Create project directory structure</li>
+                                <li>Initialize SAM template with Transform</li>
+                                <li>Configure Globals for common settings</li>
+                                <li>Define Parameters for reusability</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="code-block">
+# SAM Template Structure
+Transform: AWS::Serverless-2016-10-31
+Globals:
+  Function:
+    Runtime: python3.9
+    Timeout: 30
+Parameters:
+  Username:
+    Type: String
+Resources:
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+                        </div>
+                        
+                        <h3>Local Testing Process</h3>
+                        <ul>
+                            <li class="bullet-point">Start local API Gateway: <code>sam local start-api</code></li>
+                            <li class="bullet-point">Test individual functions: <code>sam local invoke</code></li>
+                            <li class="bullet-point">Debug with event files</li>
+                            <li class="bullet-point">Monitor logs in real-time</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Terraform Implementation Deep Dive</h3>
+                        <div class="step-by-step">
+                            <h4>Task 2: Terraform Configuration</h4>
+                            <ol>
+                                <li>Create main.tf with provider configuration</li>
+                                <li>Define variables.tf for parameters</li>
+                                <li>Create outputs.tf for resource information</li>
+                                <li>Initialize and apply configuration</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="code-block">
+# Terraform Structure
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+resource "aws_lambda_function" "hello" {
+  function_name = "${var.username}-hello"
+  # ... configuration
+}
+                        </div>
+                        
+                        <h3>State Management</h3>
+                        <ul>
+                            <li class="bullet-point">Local state file creation</li>
+                            <li class="bullet-point">State inspection and manipulation</li>
+                            <li class="bullet-point">Resource import capabilities</li>
+                            <li class="bullet-point">Change detection and planning</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 26: Lunch Break -->
+            <div class="slide break-slide">
+                <h2>🍽️ Lunch Break</h2>
+                <p>60 minutes</p>
+                <p style="font-size: 1.0em; margin-top: 20px;">Reflect on morning concepts and prepare for afternoon hands-on sessions</p>
+            </div>
+
+            <!-- Slide 27: Module 5 Introduction -->
+            <div class="slide">
+                <div class="session-header">Module 5: Decoupling Components with EventBridge and SNS</div>
+                <h2>Asynchronous Event Sources Development</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Asynchronous vs Synchronous Patterns</h3>
+                        <div class="feature-item">
+                            <h4>Synchronous Processing</h4>
+                            <p>Client waits for immediate response, tight coupling, potential bottlenecks</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Asynchronous Processing</h4>
+                            <p>Fire-and-forget pattern, loose coupling, improved resilience</p>
+                        </div>
+                        
+                        <h3>When to Choose Asynchronous</h3>
+                        <ul>
+                            <li class="bullet-point">Background processing tasks</li>
+                            <li class="bullet-point">Event-driven workflows</li>
+                            <li class="bullet-point">System integration scenarios</li>
+                            <li class="bullet-point">High-volume data processing</li>
+                            <li class="bullet-point">Microservices communication</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Asynchronous Design Considerations</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Loose Coupling</span> - Services operate independently</li>
+                            <li class="bullet-point"><span class="highlight">Resilience</span> - Failure isolation and recovery</li>
+                            <li class="bullet-point"><span class="highlight">Scalability</span> - Independent scaling of components</li>
+                            <li class="bullet-point"><span class="highlight">Event Ordering</span> - Managing message sequence when required</li>
+                            <li class="bullet-point"><span class="highlight">Error Handling</span> - Dead letter queues and retry logic</li>
+                            <li class="bullet-point"><span class="highlight">Idempotency</span> - Handle duplicate message processing</li>
+                        </ul>
+                        
+                        <div class="key-concept">
+                            <h4>Trade-offs</h4>
+                            <p>Asynchronous patterns increase complexity but provide better scalability, resilience, and performance</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 28: Amazon EventBridge Deep Dive -->
+            <div class="slide">
+                <h2>Amazon EventBridge Features and Capabilities</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>EventBridge Core Components</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Event Buses</span> - Custom event routing channels</li>
+                            <li class="bullet-point"><span class="highlight">Event Rules</span> - Pattern-based event filtering</li>
+                            <li class="bullet-point"><span class="highlight">Event Patterns</span> - JSON-based matching criteria</li>
+                            <li class="bullet-point"><span class="highlight">Targets</span> - Destinations for matched events</li>
+                            <li class="bullet-point"><span class="highlight">Schema Registry</span> - Event structure management</li>
+                        </ul>
+                        
+                        <h3>Advanced Features</h3>
+                        <ul>
+                            <li class="bullet-point">Archive and replay capabilities</li>
+                            <li class="bullet-point">Cross-account event delivery</li>
+                            <li class="bullet-point">Dead letter queue integration</li>
+                            <li class="bullet-point">Event transformation</li>
+                            <li class="bullet-point">Scheduled event triggering</li>
+                        </ul>
+                        
+                        <div class="service-box">
+                            <h4>Try-it-out Exercise</h4>
+                            <p>Create custom EventBridge bus and rule with pattern matching in AWS Console</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <h3>Event Pattern Examples</h3>
+                        <div class="code-block">
+{
+  "source": ["myapp.orders"],
+  "detail-type": ["Order Placed"],
+  "detail": {
+    "amount": [{"numeric": [">=", 100]}],
+    "region": ["us-east-1", "us-west-2"],
+    "customer": {
+      "type": ["premium"]
+    }
+  }
+}
+                        </div>
+                        
+                        <h3>Event Routing Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Content-based routing without custom code</li>
+                            <li class="bullet-point">Multiple consumers for single event</li>
+                            <li class="bullet-point">Dynamic target configuration</li>
+                            <li class="bullet-point">Automatic retry and error handling</li>
+                        </ul>
+                        
+                        <h3>Common Use Cases</h3>
+                        <ul>
+                            <li class="bullet-point">Microservices communication</li>
+                            <li class="bullet-point">Application integration</li>
+                            <li class="bullet-point">Real-time data processing</li>
+                            <li class="bullet-point">Workflow orchestration</li>
+                            <li class="bullet-point">System monitoring and alerting</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 29: EventBridge Architecture Patterns -->
+            <div class="slide">
+                <h2>EventBridge Architecture Patterns</h2>
+                <div class="architecture-diagram">
+                    <h3>Fan-Out Pattern</h3>
+                    <div class="diagram-flow">
+                        <div class="diagram-box">Order Service</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">EventBridge</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Payment Service</div>
+                    </div>
+                    <div style="text-align: center; margin: 10px 0;">
+                        <span class="arrow" style="transform: rotate(90deg); display: inline-block;">→</span>
+                    </div>
+                    <div class="diagram-flow">
+                        <div></div>
+                        <div></div>
+                        <div class="diagram-box">Inventory Service</div>
+                    </div>
+                    <div style="text-align: center; margin: 10px 0;">
+                        <span class="arrow" style="transform: rotate(90deg); display: inline-block;">→</span>
+                    </div>
+                    <div class="diagram-flow">
+                        <div></div>
+                        <div></div>
+                        <div class="diagram-box">Email Service</div>
+                    </div>
+                </div>
+                
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Pattern Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Single event triggers multiple independent actions</li>
+                            <li class="bullet-point">Easy to add new consumers without changing producers</li>
+                            <li class="bullet-point">Parallel processing for improved performance</li>
+                            <li class="bullet-point">Failure isolation between consumers</li>
+                        </ul>
+                        
+                        <h3>Content-Based Routing</h3>
+                        <ul>
+                            <li class="bullet-point">Route events based on event content</li>
+                            <li class="bullet-point">Multiple rules can match same event</li>
+                            <li class="bullet-point">Complex filtering with nested attributes</li>
+                            <li class="bullet-point">Numeric and string pattern matching</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Event Transformation</h3>
+                        <div class="code-block">
+{
+  "InputTransformer": {
+    "InputPathsMap": {
+      "customer": "$.detail.customer.id",
+      "amount": "$.detail.amount"
+    },
+    "InputTemplate": {
+      "customerId": "<customer>",
+      "orderValue": "<amount>",
+      "timestamp": "<aws.events.event.ingestion-time>"
+    }
+  }
+}
+                        </div>
+                        
+                        <h3>Cross-Account Integration</h3>
+                        <ul>
+                            <li class="bullet-point">Send events across AWS accounts</li>
+                            <li class="bullet-point">Resource-based policies for access control</li>
+                            <li class="bullet-point">Centralized event hub architecture</li>
+                            <li class="bullet-point">Compliance and audit trail across accounts</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 30: Amazon SNS Overview -->
+            <div class="slide">
+                <h2>Amazon SNS (Simple Notification Service)</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>SNS Core Concepts</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Topics</span> - Communication channels for messages</li>
+                            <li class="bullet-point"><span class="highlight">Publishers</span> - Services that send messages to topics</li>
+                            <li class="bullet-point"><span class="highlight">Subscribers</span> - Endpoints that receive messages</li>
+                            <li class="bullet-point"><span class="highlight">Message Filtering</span> - Attribute-based message routing</li>
+                            <li class="bullet-point"><span class="highlight">Dead Letter Queues</span> - Handle failed deliveries</li>
+                        </ul>
+                        
+                        <h3>Supported Protocols</h3>
+                        <ul>
+                            <li class="bullet-point">HTTP/HTTPS endpoints</li>
+                            <li class="bullet-point">Email and Email-JSON</li>
+                            <li class="bullet-point">SMS text messaging</li>
+                            <li class="bullet-point">Amazon SQS queues</li>
+                            <li class="bullet-point">AWS Lambda functions</li>
+                            <li class="bullet-point">Mobile push notifications</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Message Filtering Example</h3>
+                        <div class="code-block">
+# Message with attributes
+{
+  "Message": "Order processed",
+  "MessageAttributes": {
+    "order_type": {
+      "DataType": "String",
+      "StringValue": "premium"
+    },
+    "region": {
+      "DataType": "String", 
+      "StringValue": "us-east-1"
+    }
+  }
+}
+
+# Subscription filter policy
+{
+  "order_type": ["premium", "standard"],
+  "region": ["us-east-1"]
+}
+                        </div>
+                        
+                        <div class="service-box">
+                            <h4>Try-it-out Exercise</h4>
+                            <p>Create Amazon SNS topic with message filtering for targeted delivery</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 31: SNS vs EventBridge Detailed Comparison -->
+            <div class="slide">
+                <h2>Amazon SNS vs EventBridge: When to Use Which?</h2>
+                <table class="comparison-table">
+                    <tr>
+                        <th>Aspect</th>
+                        <th>Amazon SNS</th>
+                        <th>Amazon EventBridge</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Message Routing</strong></td>
+                        <td>Topic-based publish/subscribe</td>
+                        <td>Rule-based pattern matching</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Filtering Capabilities</strong></td>
+                        <td>Message attributes filtering</td>
+                        <td>Content-based routing with JSON patterns</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Message Transformation</strong></td>
+                        <td>Limited transformation options</td>
+                        <td>Built-in input transformation</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Target Types</strong></td>
+                        <td>HTTP, Email, SMS, SQS, Lambda, Mobile</td>
+                        <td>AWS services, SaaS applications, custom HTTP endpoints</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Schema Registry</strong></td>
+                        <td>No built-in schema management</td>
+                        <td>Integrated schema registry with versioning</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cross-Account Delivery</strong></td>
+                        <td>Supported with resource policies</td>
+                        <td>Built-in cross-account event delivery</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Event Archive/Replay</strong></td>
+                        <td>Not supported</td>
+                        <td>Built-in archive and replay capabilities</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Best Use Cases</strong></td>
+                        <td>Simple pub/sub, notifications, alerts</td>
+                        <td>Complex event routing, application integration</td>
+                    </tr>
+                </table>
+                
+                <div class="key-concept">
+                    <h4>Selection Guidelines</h4>
+                    <p>Use SNS for simple pub/sub scenarios and notifications. Use EventBridge for complex event-driven architectures and application integration</p>
+                </div>
+            </div>
+
+            <!-- Slide 32: Module 6 Introduction -->
+            <div class="slide">
+                <div class="session-header">Module 6: Event-Driven Development Using Queues and Streams</div>
+                <h2>Polling Event Sources for Lambda Triggers</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Polling vs Push Model</h3>
+                        <div class="key-concept">
+                            <h4>Push Model (Synchronous)</h4>
+                            <p><span class="highlight">Event source invokes Lambda</span> - API Gateway, S3, EventBridge directly trigger functions</p>
+                        </div>
+                        <div class="key-concept">
+                            <h4>Polling Model (Asynchronous)</h4>
+                            <p><span class="highlight">Lambda polls event source</span> - Lambda service reads from queues and streams</p>
+                        </div>
+                        
+                        <h3>Polling Event Sources</h3>
+                        <ul>
+                            <li class="bullet-point">Amazon SQS (Standard and FIFO queues)</li>
+                            <li class="bullet-point">Amazon DynamoDB Streams</li>
+                            <li class="bullet-point">Amazon Kinesis Data Streams</li>
+                            <li class="bullet-point">Amazon MSK (Managed Kafka)</li>
+                            <li class="bullet-point">Amazon MQ</li>
+                            <li class="bullet-point">Self-managed Apache Kafka</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Event Source Mapping</h3>
+                        <div class="architecture-diagram">
+                            <div class="diagram-flow">
+                                <div class="diagram-box">SQS Queue</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">Lambda Poller</div>
+                                <span class="arrow">→</span>
+                                <div class="diagram-box">Function</div>
+                            </div>
+                        </div>
+                        
+                        <h3>Processing Characteristics</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Batch Processing</span> - Process multiple records together</li>
+                            <li class="bullet-point"><span class="highlight">Parallel Execution</span> - Multiple concurrent function invocations</li>
+                            <li class="bullet-point"><span class="highlight">Error Handling</span> - Automatic retries and DLQ integration</li>
+                            <li class="bullet-point"><span class="highlight">Scaling Control</span> - Configure concurrency and batch size</li>
+                        </ul>
+                        
+                        <h3>Configuration Options</h3>
+                        <ul>
+                            <li class="bullet-point">Batch size (1-10 for SQS, 1-100 for streams)</li>
+                            <li class="bullet-point">Maximum batching window</li>
+                            <li class="bullet-point">Parallel execution factor</li>
+                            <li class="bullet-point">Error handling and retry settings</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 33: Queues vs Streams Deep Dive -->
+            <div class="slide">
+                <h2>Understanding Queues vs Streams</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Queue Characteristics (SQS)</h3>
+                        <div class="key-concept">
+                            <h4>Message Durability</h4>
+                            <p><span class="highlight">At-least-once delivery</span> - Messages persist until successfully processed</p>
+                        </div>
+                        
+                        <h3>SQS Features</h3>
+                        <ul>
+                            <li class="bullet-point">Variable processing order (Standard queues)</li>
+                            <li class="bullet-point">Exactly-once processing (FIFO queues)</li>
+                            <li class="bullet-point">Message visibility timeout</li>
+                            <li class="bullet-point">Dead letter queue support</li>
+                            <li class="bullet-point">Long polling for efficiency</li>
+                            <li class="bullet-point">Message deduplication</li>
+                        </ul>
+                        
+                        <h3>Queue Use Cases</h3>
+                        <ul>
+                            <li class="bullet-point">Decoupling application components</li>
+                            <li class="bullet-point">Background job processing</li>
+                            <li class="bullet-point">Load leveling and buffering</li>
+                            <li class="bullet-point">Workflow orchestration</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Stream Characteristics</h3>
+                        <div class="key-concept">
+                            <h4>Ordered Processing</h4>
+                            <p><span class="highlight">Sequential record processing</span> - Maintains order within shards or partitions</p>
+                        </div>
+                        
+                        <h3>Stream Features</h3>
+                        <ul>
+                            <li class="bullet-point">Time-ordered sequence of records</li>
+                            <li class="bullet-point">Multiple consumers can read same stream</li>
+                            <li class="bullet-point">Configurable retention period</li>
+                            <li class="bullet-point">Shard-based parallel processing</li>
+                            <li class="bullet-point">Real-time data processing</li>
+                            <li class="bullet-point">Checkpoint-based progress tracking</li>
+                        </ul>
+                        
+                        <h3>Stream Use Cases</h3>
+                        <ul>
+                            <li class="bullet-point">Real-time analytics</li>
+                            <li class="bullet-point">Event sourcing patterns</li>
+                            <li class="bullet-point">Change data capture</li>
+                            <li class="bullet-point">IoT data processing</li>
+                            <li class="bullet-point">Log aggregation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 34: Lambda Integration Patterns -->
+            <div class="slide">
+                <h2>Lambda Integration with Queues and Streams</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>SQS Integration</h3>
+                        <div class="code-block">
+# Lambda event structure for SQS
+{
+  "Records": [
+    {
+      "messageId": "059f36b4-87a3-44ab-83d2",
+      "receiptHandle": "AQEBwJnKy...",
+      "body": "{\"message\": \"Hello\"}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1545082649183"
+      },
+      "messageAttributes": {},
+      "md5OfBody": "098f6bcd4621d373cade4e832627b4f6",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:...",
+      "awsRegion": "us-east-1"
+    }
+  ]
+}
+                        </div>
+                        
+                        <h3>Error Handling Strategies</h3>
+                        <ul>
+                            <li class="bullet-point">Message visibility timeout adjustment</li>
+                            <li class="bullet-point">Dead letter queue configuration</li>
+                            <li class="bullet-point">Partial batch failure handling</li>
+                            <li class="bullet-point">Exponential backoff for retries</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>DynamoDB Streams Integration</h3>
+                        <div class="code-block">
+# Lambda event structure for DynamoDB Streams
+{
+  "Records": [
+    {
+      "eventID": "1",
+      "eventName": "INSERT",
+      "eventVersion": "1.0",
+      "eventSource": "aws:dynamodb",
+      "awsRegion": "us-east-1",
+      "dynamodb": {
+        "Keys": {
+          "id": {
+            "S": "123"
+          }
+        },
+        "NewImage": {
+          "id": {"S": "123"},
+          "name": {"S": "John Doe"}
+        }
+      }
+    }
+  ]
+}
+                        </div>
+                        
+                        <h3>Stream Processing Features</h3>
+                        <ul>
+                            <li class="bullet-point">Change data capture from DynamoDB</li>
+                            <li class="bullet-point">Real-time trigger on table changes</li>
+                            <li class="bullet-point">Multiple Lambda functions per stream</li>
+                            <li class="bullet-point">Automatic retry and error handling</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 35: Lab 3 Introduction -->
+            <div class="slide">
+                <h2>Event-Driven Microservices Architecture</h2>
+                <div class="lab-callout">
+                    <h3>⚡ Lab 3: EventBridge Fan-Out Pattern</h3>
+                    <p>Build event-driven microservices with EventBridge and Lambda</p>
+                </div>
+                
+                <div class="architecture-diagram">
+                    <h3>Lab Architecture Overview</h3>
+                    <div class="diagram-flow">
+                        <div class="diagram-box">API Gateway</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Event Producer</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">EventBridge</div>
+                        <span class="arrow">→</span>
+                        <div class="diagram-box">Consumers</div>
+                    </div>
+                </div>
+                
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Event-Driven Components</h3>
+                        <ul>
+                            <li class="bullet-point">Custom EventBridge bus for e-commerce events</li>
+                            <li class="bullet-point">Event producer API handling multiple event types</li>
+                            <li class="bullet-point">Order processing Lambda function</li>
+                            <li class="bullet-point">Inventory management Lambda function</li>
+                            <li class="bullet-point">Payment processing Lambda function</li>
+                            <li class="bullet-point">High-value order special processing</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Key Learning Outcomes</h3>
+                        <ul>
+                            <li class="bullet-point">Design event-driven architectures</li>
+                            <li class="bullet-point">Implement EventBridge rule patterns</li>
+                            <li class="bullet-point">Create loosely coupled microservices</li>
+                            <li class="bullet-point">Apply content-based routing</li>
+                            <li class="bullet-point">Monitor event flow and processing</li>
+                            <li class="bullet-point">Handle event filtering and transformation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 36: Lab 3 Detailed Implementation -->
+            <div class="slide">
+                <h2>Lab 3: Event Processing Patterns Implementation</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Event Types and Workflows</h3>
+                        <div class="feature-item">
+                            <h4>Order Placed Events</h4>
+                            <p>Customer order creation triggering inventory checks, payment processing, and fulfillment workflows</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Payment Processed Events</h4>
+                            <p>Payment confirmation triggering order status updates and shipping notifications</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Inventory Updated Events</h4>
+                            <p>Stock level changes triggering reorder processes and availability updates</p>
+                        </div>
+                        
+                        <h3>Advanced Filtering</h3>
+                        <ul>
+                            <li class="bullet-point">High-value order detection ($100+)</li>
+                            <li class="bullet-point">Regional event routing</li>
+                            <li class="bullet-point">Customer tier-based processing</li>
+                            <li class="bullet-point">Product category-specific workflows</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Implementation Tasks</h3>
+                        <div class="step-by-step">
+                            <h4>Task Sequence</h4>
+                            <ol>
+                                <li>Create custom EventBridge bus</li>
+                                <li>Deploy event producer Lambda and API</li>
+                                <li>Implement consumer Lambda functions</li>
+                                <li>Configure EventBridge rules and patterns</li>
+                                <li>Test event publishing and consumption</li>
+                                <li>Implement advanced filtering patterns</li>
+                                <li>Monitor event flow in CloudWatch</li>
+                            </ol>
+                        </div>
+                        
+                        <h3>Fan-Out Pattern Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Single event triggers multiple independent actions</li>
+                            <li class="bullet-point">Easy to add new consumers without producer changes</li>
+                            <li class="bullet-point">Parallel processing improves performance</li>
+                            <li class="bullet-point">Failure isolation between consumers</li>
+                            <li class="bullet-point">Independent scaling of each service</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 37: Day 1 Comprehensive Summary -->
+            <div class="slide">
+                <h2>Day 1 Comprehensive Learning Summary</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Core Concepts Mastered</h3>
+                        <ul>
+                            <li class="bullet-point"><span class="highlight">Serverless Fundamentals</span> - Event-driven design, scaling, cost optimization</li>
+                            <li class="bullet-point"><span class="highlight">API Development</span> - Lambda and API Gateway integration patterns</li>
+                            <li class="bullet-point"><span class="highlight">Security Implementation</span> - Authentication, authorization, Cognito</li>
+                            <li class="bullet-point"><span class="highlight">Infrastructure as Code</span> - SAM and Terraform deployment strategies</li>
+                            <li class="bullet-point"><span class="highlight">Event-Driven Architecture</span> - EventBridge, SNS, asynchronous patterns</li>
+                        </ul>
+                        
+                        <h3>Technical Skills Developed</h3>
+                        <ul>
+                            <li class="bullet-point">Lambda function development and deployment</li>
+                            <li class="bullet-point">API Gateway configuration and testing</li>
+                            <li class="bullet-point">EventBridge rule creation and pattern matching</li>
+                            <li class="bullet-point">AWS CLI proficiency and resource management</li>
+                            <li class="bullet-point">CloudWatch monitoring and debugging</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Hands-On Achievements</h3>
+                        <ul>
+                            <li class="bullet-point">Built and deployed first serverless API</li>
+                            <li class="bullet-point">Implemented Infrastructure as Code with two frameworks</li>
+                            <li class="bullet-point">Created event-driven microservices architecture</li>
+                            <li class="bullet-point">Configured security and authentication patterns</li>
+                            <li class="bullet-point">Applied monitoring and operational best practices</li>
+                        </ul>
+                        
+                        <h3>Architecture Patterns Learned</h3>
+                        <ul>
+                            <li class="bullet-point">Request-response API patterns</li>
+                            <li class="bullet-point">Event-driven fan-out patterns</li>
+                            <li class="bullet-point">Microservices communication</li>
+                            <li class="bullet-point">Authentication and authorization flows</li>
+                            <li class="bullet-point">Error handling and resilience patterns</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="key-concept">
+                    <h4>Foundation for Advanced Topics</h4>
+                    <p>Today's concepts provide the foundation for Day 2's advanced integration patterns, stream processing, and Day 3's monitoring, optimization, and enterprise group projects</p>
+                </div>
+            </div>
+
+            <!-- Slide 38: Day 2 Preview and Preparation -->
+            <div class="slide">
+                <h2>Day 2 Preview: Advanced Integration Patterns</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Tomorrow's Advanced Topics</h3>
+                        <div class="feature-item">
+                            <h4>Queue and Stream Processing</h4>
+                            <p>SQS message processing, DynamoDB Streams, Kinesis integration patterns</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Advanced DynamoDB Integration</h4>
+                            <p>Single-table design, DynamoDB Streams, change data capture patterns</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Error Handling and Resilience</h4>
+                            <p>Circuit breakers, dead letter queues, retry strategies, graceful degradation</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4>Step Functions Workflows</h4>
+                            <p>Workflow orchestration, state machines, error handling, parallel processing</p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <h3>Preparation Activities</h3>
+                        <ul>
+                            <li class="bullet-point">Review today's lab implementations and code</li>
+                            <li class="bullet-point">Explore AWS DynamoDB and SQS documentation</li>
+                            <li class="bullet-point">Practice with SAM CLI commands and local testing</li>
+                            <li class="bullet-point">Experiment with EventBridge pattern variations</li>
+                            <li class="bullet-point">Read about Step Functions basic concepts</li>
+                        </ul>
+                        
+                        <h3>Performance and Cost Optimization</h3>
+                        <ul>
+                            <li class="bullet-point">Lambda performance tuning techniques</li>
+                            <li class="bullet-point">Cold start optimization strategies</li>
+                            <li class="bullet-point">Cost analysis and optimization patterns</li>
+                            <li class="bullet-point">Monitoring and alerting best practices</li>
+                        </ul>
+                        
+                        <div class="key-concept">
+                            <h4>Building on Today's Foundation</h4>
+                            <p>Day 2 builds directly on today's serverless and event-driven concepts with more complex integration patterns</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 39: Questions, Discussion, and Wrap-up -->
+            <div class="slide">
+                <h2>Questions, Discussion, and Day 1 Wrap-up</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Today's Key Achievements</h3>
+                        <ul>
+                            <li class="bullet-point">Successfully deployed first serverless applications</li>
+                            <li class="bullet-point">Mastered Infrastructure as Code fundamentals</li>
+                            <li class="bullet-point">Implemented secure API authentication patterns</li>
+                            <li class="bullet-point">Built event-driven microservices architecture</li>
+                            <li class="bullet-point">Applied monitoring and operational best practices</li>
+                        </ul>
+                        
+                        <h3>Common Questions and Clarifications</h3>
+                        <ul>
+                            <li class="bullet-point">When to choose REST API vs HTTP API</li>
+                            <li class="bullet-point">SAM vs Terraform decision criteria</li>
+                            <li class="bullet-point">EventBridge vs SNS use case scenarios</li>
+                            <li class="bullet-point">Lambda cold start mitigation strategies</li>
+                            <li class="bullet-point">Cost optimization best practices</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Resources for Continued Learning</h3>
+                        <div class="service-box">
+                            <h4>AWS Documentation</h4>
+                            <p>Official AWS Lambda, API Gateway, EventBridge, and SAM documentation</p>
+                        </div>
+                        <div class="service-box">
+                            <h4>Serverless Framework Resources</h4>
+                            <p>Community best practices, patterns, and example implementations</p>
+                        </div>
+                        <div class="service-box">
+                            <h4>Hands-On Practice</h4>
+                            <p>AWS Free Tier resources for continued experimentation and learning</p>
+                        </div>
+                        
+                        <h3>Day 2 Session Logistics</h3>
+                        <ul>
+                            <li class="bullet-point">Start time and location confirmation</li>
+                            <li class="bullet-point">Lab environment persistence</li>
+                            <li class="bullet-point">Required preparation materials</li>
+                            <li class="bullet-point">Advanced topics preview</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                    <h3 style="color: #FF9900; font-size: 2.0em;">Thank You for Your Engagement!</h3>
+                    <p style="font-size: 1.2em; color: #FFAD33;">Excellent progress on Day 1 - Ready for advanced patterns tomorrow</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">39</span>
+    </div>
+
+    <div class="navigation">
+        <button class="nav-button" id="prev-btn" onclick="previousSlide()">Previous</button>
+        <button class="nav-button" id="next-btn" onclick="nextSlide()">Next</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+
+        document.getElementById('total-slides').textContent = totalSlides;
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+            
+            // Update navigation buttons
+            document.getElementById('prev-btn').disabled = currentSlide === 0;
+            document.getElementById('next-btn').disabled = currentSlide === totalSlides - 1;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                showSlide(currentSlide + 1);
+            }
+        }
+
+        function previousSlide() {
+            if (currentSlide > 0) {
+                showSlide(currentSlide - 1);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                previousSlide();
+            }
+        });
+
+        // Initialize
+        showSlide(0);
+    </script>
+</body>
+</html>
