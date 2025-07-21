@@ -1,4 +1,4 @@
-# Developing Serverless Solutions on AWS - Day 2 - Lab 6
+# Developing Serverless Solutions on AWS - Lab 6
 ## Workflow Orchestration Using AWS Step Functions
 
 **Lab Duration:** 90 minutes
@@ -45,9 +45,71 @@ Continue using your AWS Cloud9 environment from previous labs.
 
 ---
 
-## Task 1: Create Lambda Functions for Workflow
+## Task 1: Create IAM Role for Step Functions (Console)
 
-### Step 1.1: Create Order Validation Function
+### Step 1.1: Create Step Functions Execution Role
+
+1. Navigate to **IAM** in the AWS Console
+2. Click **Roles** in the left navigation
+3. Click **Create role**
+4. Configure trust relationship:
+   - **Trusted entity type**: AWS service
+   - **Service**: Step Functions
+5. Click **Next**
+
+### Step 1.2: Attach Permissions Policies
+
+1. Search and select the following managed policies:
+   - `AWSStepFunctionsFullAccess`
+   - `AWSLambdaRole`
+
+2. Click **Next**
+3. Configure role details:
+   - **Role name**: `[your-username]-stepfunctions-role`
+   - **Description**: `Step Functions execution role for workflow orchestration`
+   - **Tags**: Add tag with Key: `Project`, Value: `ServerlessLab`
+
+4. Click **Create role**
+
+### Step 1.3: Add Custom Policies
+
+1. Click on your newly created role
+2. Click **Add permissions** → **Create inline policy**
+3. Click the **JSON** tab and paste:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction",
+                "sqs:SendMessage",
+                "sqs:ReceiveMessage",
+                "sqs:DeleteMessage",
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:DescribeLogGroups",
+                "logs:DescribeLogStreams"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+4. Click **Next**
+5. **Name**: `StepFunctionsExecutionPolicy`
+6. Click **Create policy**
+7. **Copy the Role ARN** for later use
+
+---
+
+## Task 2: Create Lambda Functions for Workflow (Cloud9)
+
+### Step 2.1: Create Order Validation Function
 
 1. Create directory for order validation:
 ```bash
@@ -59,47 +121,51 @@ cd ~/environment/[your-username]-order-validator
 
 ```python
 import json
-import random
 import time
+import random
 
 def lambda_handler(event, context):
     """
-    Validates order data and customer information
+    Validates incoming order data
     """
     
     print(f"Validating order: {json.dumps(event, indent=2)}")
     
     # Extract order details
-    order_id = event.get('orderId', 'unknown')
-    customer_id = event.get('customerId', 'unknown')
+    order_id = event.get('orderId', '')
+    customer_id = event.get('customerId', '')
     amount = event.get('amount', 0)
     items = event.get('items', [])
     
     # Simulate validation processing time
-    time.sleep(random.uniform(0.5, 1.5))
+    time.sleep(random.uniform(0.1, 0.3))
     
     # Validation logic
     validation_errors = []
     
-    # Check required fields
-    if not order_id or order_id == 'unknown':
-        validation_errors.append("Missing order ID")
+    if not order_id:
+        validation_errors.append("Order ID is required")
     
-    if not customer_id or customer_id == 'unknown':
-        validation_errors.append("Missing customer ID")
+    if not customer_id:
+        validation_errors.append("Customer ID is required")
     
     if amount <= 0:
-        validation_errors.append("Invalid amount")
+        validation_errors.append("Amount must be greater than 0")
     
-    if not items:
-        validation_errors.append("No items in order")
+    if not items or len(items) == 0:
+        validation_errors.append("At least one item is required")
     
-    # Check item availability (simulate)
-    for item in items:
-        if random.random() < 0.1:  # 10% chance of unavailable item
-            validation_errors.append(f"Item {item.get('productId', 'unknown')} is out of stock")
+    # Calculate total from items
+    calculated_total = sum(item.get('price', 0) * item.get('quantity', 0) for item in items)
     
-    # Determine validation result
+    if abs(calculated_total - amount) > 0.01:
+        validation_errors.append("Amount doesn't match item totals")
+    
+    # Simulate occasional validation failure for testing
+    if random.random() < 0.1:  # 10% chance of validation service error
+        raise Exception("Validation service temporarily unavailable")
+    
+    # Return validation result
     is_valid = len(validation_errors) == 0
     
     result = {
@@ -107,21 +173,23 @@ def lambda_handler(event, context):
         'customerId': customer_id,
         'amount': amount,
         'items': items,
-        'isValid': is_valid,
-        'validationErrors': validation_errors,
-        'validationTimestamp': time.time(),
-        'validatedBy': 'order-validator'
+        'validation': {
+            'isValid': is_valid,
+            'errors': validation_errors,
+            'calculatedTotal': calculated_total,
+            'validatedAt': time.time()
+        },
+        'nextStep': 'process_payment' if is_valid else 'validation_failed'
     }
     
-    if is_valid:
-        print(f"✅ Order {order_id} validation passed")
-    else:
-        print(f"❌ Order {order_id} validation failed: {validation_errors}")
+    print(f"Validation result: {'PASSED' if is_valid else 'FAILED'}")
+    if validation_errors:
+        print(f"Validation errors: {validation_errors}")
     
     return result
 ```
 
-3. Deploy order validator:
+3. Deploy order validation function:
 ```bash
 zip order-validator.zip order_validator.py
 
@@ -132,12 +200,12 @@ aws lambda create-function \
   --handler order_validator.lambda_handler \
   --zip-file fileb://order-validator.zip \
   --timeout 30 \
-  --description "Validates order data and customer information"
+  --description "Order validation function for Step Functions workflow"
 ```
 
-### Step 1.2: Create Payment Processor Function
+### Step 2.2: Create Payment Processing Function
 
-1. Create directory for payment processor:
+1. Create directory for payment processing:
 ```bash
 mkdir ~/environment/[your-username]-payment-processor
 cd ~/environment/[your-username]-payment-processor
@@ -147,9 +215,8 @@ cd ~/environment/[your-username]-payment-processor
 
 ```python
 import json
-import random
 import time
-import uuid
+import random
 
 def lambda_handler(event, context):
     """
@@ -158,55 +225,70 @@ def lambda_handler(event, context):
     
     print(f"Processing payment: {json.dumps(event, indent=2)}")
     
-    # Extract order details
-    order_id = event.get('orderId', 'unknown')
-    customer_id = event.get('customerId', 'unknown')
-    amount = event.get('amount', 0)
+    # Extract order and validation info
+    order_id = event.get('orderId')
+    customer_id = event.get('customerId')
+    amount = event.get('amount')
+    validation = event.get('validation', {})
+    
+    # Check if order was validated
+    if not validation.get('isValid', False):
+        raise Exception("Cannot process payment for invalid order")
     
     # Simulate payment processing time
-    time.sleep(random.uniform(1.0, 3.0))
+    processing_time = random.uniform(0.2, 0.8)
+    time.sleep(processing_time)
     
-    # Simulate payment success/failure
-    payment_success = random.random() > 0.15  # 85% success rate
+    # Simulate payment gateway responses
+    success_rate = 0.85  # 85% success rate
+    payment_successful = random.random() < success_rate
     
-    if payment_success:
-        payment_id = f"pay_{uuid.uuid4().hex[:8]}"
-        status = "SUCCESS"
-        message = "Payment processed successfully"
-        print(f"💳 Payment successful for order {order_id}: {payment_id}")
+    if payment_successful:
+        transaction_id = f"txn_{order_id}_{int(time.time())}"
+        payment_method = random.choice(['credit_card', 'debit_card', 'digital_wallet'])
+        
+        payment_result = {
+            'transactionId': transaction_id,
+            'status': 'COMPLETED',
+            'paymentMethod': payment_method,
+            'amount': amount,
+            'processingTime': processing_time,
+            'timestamp': time.time()
+        }
+        
+        print(f"Payment successful: {transaction_id}")
+        
     else:
-        payment_id = None
-        status = "FAILED"
-        # Random failure reasons
+        # Simulate different types of payment failures
         failure_reasons = [
-            "Insufficient funds",
-            "Invalid payment method",
-            "Card expired",
-            "Payment gateway timeout"
+            'Insufficient funds',
+            'Card declined',
+            'Payment gateway timeout',
+            'Invalid payment information'
         ]
-        message = random.choice(failure_reasons)
-        print(f"❌ Payment failed for order {order_id}: {message}")
+        
+        payment_result = {
+            'transactionId': None,
+            'status': 'FAILED',
+            'errorCode': random.choice(['DECLINE', 'TIMEOUT', 'INVALID']),
+            'errorMessage': random.choice(failure_reasons),
+            'processingTime': processing_time,
+            'timestamp': time.time()
+        }
+        
+        print(f"Payment failed: {payment_result['errorMessage']}")
     
+    # Return enhanced order with payment info
     result = {
-        'orderId': order_id,
-        'customerId': customer_id,
-        'amount': amount,
-        'paymentId': payment_id,
-        'status': status,
-        'message': message,
-        'paymentTimestamp': time.time(),
-        'processedBy': 'payment-processor'
+        **event,  # Include all original order data
+        'payment': payment_result,
+        'nextStep': 'fulfill_order' if payment_successful else 'payment_failed'
     }
-    
-    # If payment failed, raise an exception for Step Functions error handling
-    if not payment_success:
-        result['errorType'] = 'PaymentError'
-        raise Exception(json.dumps(result))
     
     return result
 ```
 
-3. Deploy payment processor:
+3. Deploy payment processing function:
 ```bash
 zip payment-processor.zip payment_processor.py
 
@@ -217,12 +299,12 @@ aws lambda create-function \
   --handler payment_processor.lambda_handler \
   --zip-file fileb://payment-processor.zip \
   --timeout 30 \
-  --description "Processes payments for validated orders"
+  --description "Payment processing function for Step Functions workflow"
 ```
 
-### Step 1.3: Create Inventory Updater Function
+### Step 2.3: Create Inventory Update Function
 
-1. Create directory for inventory updater:
+1. Create directory for inventory update:
 ```bash
 mkdir ~/environment/[your-username]-inventory-updater
 cd ~/environment/[your-username]-inventory-updater
@@ -232,56 +314,73 @@ cd ~/environment/[your-username]-inventory-updater
 
 ```python
 import json
-import random
 import time
+import random
 
 def lambda_handler(event, context):
     """
-    Updates inventory after successful payment
+    Updates inventory for processed orders
     """
     
     print(f"Updating inventory: {json.dumps(event, indent=2)}")
     
-    # Extract order details
-    order_id = event.get('orderId', 'unknown')
+    # Extract order and payment info
+    order_id = event.get('orderId')
     items = event.get('items', [])
+    payment = event.get('payment', {})
     
-    # Simulate inventory update processing
-    time.sleep(random.uniform(0.3, 1.0))
+    # Check if payment was successful
+    if payment.get('status') != 'COMPLETED':
+        raise Exception("Cannot update inventory for unsuccessful payment")
     
+    # Simulate inventory operations
     inventory_updates = []
     
     for item in items:
-        product_id = item.get('productId', 'unknown')
+        product_id = item.get('productId')
         quantity = item.get('quantity', 0)
         
-        # Simulate inventory update
-        previous_stock = random.randint(50, 200)
-        new_stock = previous_stock - quantity
+        # Simulate checking current inventory
+        current_stock = random.randint(50, 500)
+        new_stock = max(0, current_stock - quantity)
         
-        update_record = {
+        # Simulate inventory update processing time
+        time.sleep(random.uniform(0.05, 0.15))
+        
+        inventory_update = {
             'productId': product_id,
-            'quantityReduced': quantity,
-            'previousStock': previous_stock,
+            'quantityReserved': quantity,
+            'previousStock': current_stock,
             'newStock': new_stock,
-            'updateTimestamp': time.time()
+            'lowStockAlert': new_stock < 10,
+            'timestamp': time.time()
         }
         
-        inventory_updates.append(update_record)
-        print(f"📦 Updated inventory for {product_id}: {previous_stock} -> {new_stock}")
+        inventory_updates.append(inventory_update)
+        
+        print(f"Updated inventory for {product_id}: {current_stock} -> {new_stock}")
+        
+        if new_stock < 10:
+            print(f"⚠️ Low stock alert for {product_id}: {new_stock} remaining")
     
+    # Check for any low stock items
+    low_stock_items = [update for update in inventory_updates if update['lowStockAlert']]
+    
+    # Return enhanced order with inventory info
     result = {
-        'orderId': order_id,
-        'inventoryUpdates': inventory_updates,
-        'totalItemsProcessed': len(items),
-        'updateTimestamp': time.time(),
-        'updatedBy': 'inventory-updater'
+        **event,  # Include all previous data
+        'inventory': {
+            'updates': inventory_updates,
+            'lowStockItems': low_stock_items,
+            'updatedAt': time.time()
+        },
+        'nextStep': 'fulfill_order'
     }
     
     return result
 ```
 
-3. Deploy inventory updater:
+3. Deploy inventory update function:
 ```bash
 zip inventory-updater.zip inventory_updater.py
 
@@ -292,10 +391,10 @@ aws lambda create-function \
   --handler inventory_updater.lambda_handler \
   --zip-file fileb://inventory-updater.zip \
   --timeout 30 \
-  --description "Updates inventory after successful payment"
+  --description "Inventory update function for Step Functions workflow"
 ```
 
-### Step 1.4: Create Order Fulfillment Function
+### Step 2.4: Create Order Fulfillment Function
 
 1. Create directory for order fulfillment:
 ```bash
@@ -307,51 +406,83 @@ cd ~/environment/[your-username]-order-fulfillment
 
 ```python
 import json
-import random
 import time
-import uuid
+import random
 
 def lambda_handler(event, context):
     """
     Handles order fulfillment and shipping
     """
     
-    print(f"Processing fulfillment: {json.dumps(event, indent=2)}")
+    print(f"Processing order fulfillment: {json.dumps(event, indent=2)}")
     
-    # Extract order details
-    order_id = event.get('orderId', 'unknown')
-    customer_id = event.get('customerId', 'unknown')
+    # Extract order data
+    order_id = event.get('orderId')
+    customer_id = event.get('customerId')
     items = event.get('items', [])
+    payment = event.get('payment', {})
+    inventory = event.get('inventory', {})
     
-    # Simulate fulfillment processing
-    time.sleep(random.uniform(1.0, 2.0))
+    # Generate fulfillment details
+    fulfillment_id = f"fulfill_{order_id}_{int(time.time())}"
+    shipping_method = random.choice(['standard', 'express', 'overnight'])
     
-    # Generate tracking information
-    tracking_number = f"TRK{uuid.uuid4().hex[:8].upper()}"
-    estimated_delivery = time.time() + (random.randint(2, 7) * 24 * 3600)  # 2-7 days
-    
-    # Random shipping carrier
-    carriers = ["UPS", "FedEx", "USPS", "DHL"]
-    carrier = random.choice(carriers)
-    
-    result = {
-        'orderId': order_id,
-        'customerId': customer_id,
-        'fulfillmentStatus': 'SHIPPED',
-        'trackingNumber': tracking_number,
-        'carrier': carrier,
-        'estimatedDelivery': estimated_delivery,
-        'itemsShipped': len(items),
-        'fulfillmentTimestamp': time.time(),
-        'fulfilledBy': 'order-fulfillment'
+    # Calculate estimated delivery
+    delivery_days = {
+        'standard': random.randint(3, 7),
+        'express': random.randint(1, 3),
+        'overnight': 1
     }
     
-    print(f"📦 Order {order_id} shipped with tracking {tracking_number}")
+    estimated_delivery_days = delivery_days[shipping_method]
+    
+    # Simulate fulfillment processing
+    time.sleep(random.uniform(0.1, 0.4))
+    
+    # Generate tracking information
+    tracking_number = f"TRK{random.randint(100000, 999999)}"
+    warehouse_location = random.choice(['US-EAST', 'US-WEST', 'US-CENTRAL'])
+    
+    fulfillment_result = {
+        'fulfillmentId': fulfillment_id,
+        'trackingNumber': tracking_number,
+        'shippingMethod': shipping_method,
+        'estimatedDeliveryDays': estimated_delivery_days,
+        'warehouseLocation': warehouse_location,
+        'status': 'PROCESSING',
+        'createdAt': time.time()
+    }
+    
+    # Create order summary
+    order_summary = {
+        'orderId': order_id,
+        'customerId': customer_id,
+        'totalAmount': event.get('amount'),
+        'itemCount': len(items),
+        'transactionId': payment.get('transactionId'),
+        'paymentStatus': payment.get('status'),
+        'inventoryUpdated': len(inventory.get('updates', [])),
+        'fulfillmentStatus': 'PROCESSING',
+        'trackingNumber': tracking_number,
+        'estimatedDelivery': f"{estimated_delivery_days} business days"
+    }
+    
+    print(f"Order {order_id} fulfilled successfully")
+    print(f"Tracking number: {tracking_number}")
+    print(f"Estimated delivery: {estimated_delivery_days} days via {shipping_method}")
+    
+    # Return complete order with fulfillment info
+    result = {
+        **event,  # Include all previous data
+        'fulfillment': fulfillment_result,
+        'orderSummary': order_summary,
+        'status': 'COMPLETED'
+    }
     
     return result
 ```
 
-3. Deploy order fulfillment:
+3. Deploy order fulfillment function:
 ```bash
 zip order-fulfillment.zip order_fulfillment.py
 
@@ -362,73 +493,25 @@ aws lambda create-function \
   --handler order_fulfillment.lambda_handler \
   --zip-file fileb://order-fulfillment.zip \
   --timeout 30 \
-  --description "Handles order fulfillment and shipping"
+  --description "Order fulfillment function for Step Functions workflow"
 ```
 
 ---
 
-## Task 2: Create Order Processing Workflow
+## Task 3: Create Standard Workflow (Console)
 
-### Step 2.1: Create IAM Role for Step Functions
+### Step 3.1: Design Order Processing Workflow
 
-1. Create IAM role for Step Functions:
-```bash
-aws iam create-role \
-  --role-name [your-username]-stepfunctions-role \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Principal": {
-          "Service": "states.amazonaws.com"
-        },
-        "Action": "sts:AssumeRole"
-      }
-    ]
-  }'
-```
+1. Navigate to **AWS Step Functions** in the AWS Console
+2. Click **Create state machine**
+3. Choose **Write your workflow in code**
+4. Select **Standard** as the type
 
-2. Attach necessary policies:
-```bash
-aws iam attach-role-policy \
-  --role-name [your-username]-stepfunctions-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+5. In the Definition section, paste the following state machine definition:
 
-# Create custom policy for additional permissions
-cat > stepfunctions-policy.json << 'EOF'
+```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "lambda:InvokeFunction",
-                "sqs:SendMessage",
-                "sns:Publish",
-                "logs:CreateLogGroup",
-                "logs:CreateLogStream",
-                "logs:PutLogEvents"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-EOF
-
-aws iam put-role-policy \
-  --role-name [your-username]-stepfunctions-role \
-  --policy-name StepFunctionsExecutionPolicy \
-  --policy-document file://stepfunctions-policy.json
-```
-
-### Step 2.2: Create Order Processing State Machine
-
-1. Create the state machine definition:
-```bash
-cat > order-processing-workflow.json << 'EOF'
-{
-  "Comment": "Order processing workflow with error handling",
+  "Comment": "Order processing workflow with parallel execution and error handling",
   "StartAt": "ValidateOrder",
   "States": {
     "ValidateOrder": {
@@ -455,46 +538,26 @@ cat > order-processing-workflow.json << 'EOF'
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.isValid",
+          "Variable": "$.validation.isValid",
           "BooleanEquals": true,
-          "Next": "ProcessPayment"
+          "Next": "ParallelProcessing"
         }
       ],
       "Default": "ValidationFailed"
-    },
-    "ProcessPayment": {
-      "Type": "Task",
-      "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-payment-processor",
-      "Next": "ParallelProcessing",
-      "Retry": [
-        {
-          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "Next": "PaymentFailed",
-          "ResultPath": "$.error"
-        }
-      ]
     },
     "ParallelProcessing": {
       "Type": "Parallel",
       "Branches": [
         {
-          "StartAt": "UpdateInventory",
+          "StartAt": "ProcessPayment",
           "States": {
-            "UpdateInventory": {
+            "ProcessPayment": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-inventory-updater",
+              "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-payment-processor",
               "End": true,
               "Retry": [
                 {
-                  "ErrorEquals": ["States.ALL"],
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
                   "IntervalSeconds": 1,
                   "MaxAttempts": 2,
                   "BackoffRate": 2.0
@@ -504,15 +567,15 @@ cat > order-processing-workflow.json << 'EOF'
           }
         },
         {
-          "StartAt": "ProcessFulfillment",
+          "StartAt": "UpdateInventory",
           "States": {
-            "ProcessFulfillment": {
+            "UpdateInventory": {
               "Type": "Task",
-              "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-order-fulfillment",
+              "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-inventory-updater",
               "End": true,
               "Retry": [
                 {
-                  "ErrorEquals": ["States.ALL"],
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
                   "IntervalSeconds": 1,
                   "MaxAttempts": 2,
                   "BackoffRate": 2.0
@@ -522,7 +585,7 @@ cat > order-processing-workflow.json << 'EOF'
           }
         }
       ],
-      "Next": "OrderComplete",
+      "Next": "CheckParallelResults",
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -531,69 +594,117 @@ cat > order-processing-workflow.json << 'EOF'
         }
       ]
     },
-    "OrderComplete": {
+    "CheckParallelResults": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$[0].payment.status",
+              "StringEquals": "COMPLETED"
+            },
+            {
+              "Variable": "$[1].inventory.updatedAt",
+              "IsPresent": true
+            }
+          ],
+          "Next": "MergeResults"
+        }
+      ],
+      "Default": "ProcessingFailed"
+    },
+    "MergeResults": {
       "Type": "Pass",
-      "Result": {
-        "status": "ORDER_COMPLETED",
-        "message": "Order processed successfully"
+      "Parameters": {
+        "orderId.$": "$[0].orderId",
+        "customerId.$": "$[0].customerId",
+        "amount.$": "$[0].amount",
+        "items.$": "$[0].items",
+        "validation.$": "$[0].validation",
+        "payment.$": "$[0].payment",
+        "inventory.$": "$[1].inventory"
       },
-      "ResultPath": "$.orderResult",
-      "End": true
+      "Next": "FulfillOrder"
+    },
+    "FulfillOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-order-fulfillment",
+      "End": true,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FulfillmentFailed",
+          "ResultPath": "$.error"
+        }
+      ]
     },
     "ValidationFailed": {
       "Type": "Pass",
       "Result": {
-        "status": "VALIDATION_FAILED",
-        "message": "Order validation failed"
+        "status": "FAILED",
+        "reason": "Order validation failed"
       },
-      "ResultPath": "$.orderResult",
-      "End": true
-    },
-    "PaymentFailed": {
-      "Type": "Pass",
-      "Result": {
-        "status": "PAYMENT_FAILED", 
-        "message": "Payment processing failed"
-      },
-      "ResultPath": "$.orderResult",
       "End": true
     },
     "ProcessingFailed": {
       "Type": "Pass",
       "Result": {
-        "status": "PROCESSING_FAILED",
-        "message": "Order processing failed after payment"
+        "status": "FAILED",
+        "reason": "Payment or inventory processing failed"
       },
-      "ResultPath": "$.orderResult",
+      "End": true
+    },
+    "FulfillmentFailed": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "reason": "Order fulfillment failed"
+      },
       "End": true
     }
   }
 }
-EOF
 ```
 
-2. Replace placeholders in the state machine definition:
-```bash
-sed -i "s/\[ACCOUNT-ID\]/$(aws sts get-caller-identity --query Account --output text)/g" order-processing-workflow.json
-sed -i "s/\[your-username\]/[your-username]/g" order-processing-workflow.json
-```
+### Step 3.2: Configure State Machine Settings
 
-3. Create the state machine:
-```bash
-aws stepfunctions create-state-machine \
-  --name "[your-username]-order-processing-workflow" \
-  --definition file://order-processing-workflow.json \
-  --role-arn arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-stepfunctions-role \
-  --type STANDARD
-```
+1. Replace the placeholders in the definition:
+   - Replace `[ACCOUNT-ID]` with your AWS account ID
+   - Replace `[your-username]` with your assigned username
+
+2. Configure state machine settings:
+   - **State machine name**: `[your-username]-order-processing-workflow`
+   - **Execution role**: Select `[your-username]-stepfunctions-role`
+
+3. **Logging** (expand Advanced settings):
+   - **Log level**: ALL
+   - **Include execution data**: Checked
+   - **Log destination**: CloudWatch Logs
+
+4. Click **Create state machine**
+
+### Step 3.3: Review Workflow Diagram
+
+1. After creation, review the **Graph view** to see the visual workflow
+2. Click on individual states to see their configuration
+3. Note the parallel processing branches for payment and inventory
+4. Observe the error handling paths and retry configurations
 
 ---
 
-## Task 3: Create Express Workflow for Real-time Processing
+## Task 4: Create Express Workflow (Console)
 
-### Step 3.1: Create Real-time Validator Function
+### Step 4.1: Create Real-time Validation Function
 
-1. Create directory for real-time validator:
+1. In Cloud9, create a function for express workflow:
 ```bash
 mkdir ~/environment/[your-username]-realtime-validator
 cd ~/environment/[your-username]-realtime-validator
@@ -607,39 +718,44 @@ import time
 
 def lambda_handler(event, context):
     """
-    Fast validation for real-time processing
+    Fast validation for express workflow
     """
     
-    # Extract data
-    user_id = event.get('userId', 'unknown')
-    action = event.get('action', 'unknown')
-    timestamp = event.get('timestamp', time.time())
+    print(f"Real-time validation: {json.dumps(event, indent=2)}")
     
-    # Quick validation rules
-    is_valid = True
-    errors = []
+    # Extract event data
+    user_id = event.get('userId', '')
+    action = event.get('action', '')
+    timestamp = event.get('timestamp', 0)
+    metadata = event.get('metadata', {})
     
-    if not user_id or user_id == 'unknown':
-        is_valid = False
-        errors.append("Missing user ID")
+    # Quick validation checks
+    is_valid = bool(user_id and action and timestamp > 0)
     
-    if action not in ['login', 'purchase', 'view', 'click']:
-        is_valid = False
-        errors.append("Invalid action type")
+    # Determine next action based on input
+    if action == 'purchase':
+        next_step = 'process_transaction'
+    elif action == 'view':
+        next_step = 'log_analytics'
+    else:
+        next_step = 'log_event'
     
-    # Add processing metadata
-    result = event.copy()
-    result.update({
-        'isValid': is_valid,
-        'validationErrors': errors,
-        'validatedAt': time.time(),
-        'processingLatency': time.time() - timestamp
-    })
+    result = {
+        'userId': user_id,
+        'action': action,
+        'timestamp': timestamp,
+        'metadata': metadata,
+        'validation': {
+            'isValid': is_valid,
+            'processedAt': time.time()
+        },
+        'nextStep': next_step
+    }
     
     return result
 ```
 
-3. Deploy real-time validator:
+3. Deploy real-time validation function:
 ```bash
 zip realtime-validator.zip realtime_validator.py
 
@@ -649,15 +765,19 @@ aws lambda create-function \
   --role arn:aws:iam::[ACCOUNT-ID]:role/LabRole \
   --handler realtime_validator.lambda_handler \
   --zip-file fileb://realtime-validator.zip \
-  --timeout 10 \
-  --description "Fast validation for real-time processing"
+  --timeout 15 \
+  --description "Real-time validation for express workflow"
 ```
 
-### Step 3.2: Create Express Workflow
+### Step 4.2: Create Express Workflow
 
-1. Create express workflow definition:
-```bash
-cat > express-workflow.json << 'EOF'
+1. In Step Functions console, click **Create state machine**
+2. Choose **Write your workflow in code**
+3. Select **Express** as the type
+
+4. Paste the following definition:
+
+```json
 {
   "Comment": "Express workflow for real-time event processing",
   "StartAt": "ValidateEvent",
@@ -665,67 +785,70 @@ cat > express-workflow.json << 'EOF'
     "ValidateEvent": {
       "Type": "Task",
       "Resource": "arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-realtime-validator",
-      "Next": "CheckValidation"
+      "Next": "RouteEvent"
     },
-    "CheckValidation": {
+    "RouteEvent": {
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.isValid",
-          "BooleanEquals": true,
-          "Next": "ProcessValidEvent"
+          "Variable": "$.nextStep",
+          "StringEquals": "process_transaction",
+          "Next": "ProcessTransaction"
+        },
+        {
+          "Variable": "$.nextStep",
+          "StringEquals": "log_analytics",
+          "Next": "LogAnalytics"
         }
       ],
-      "Default": "InvalidEvent"
+      "Default": "LogEvent"
     },
-    "ProcessValidEvent": {
+    "ProcessTransaction": {
       "Type": "Pass",
       "Result": {
-        "status": "PROCESSED",
-        "message": "Event processed successfully"
+        "status": "TRANSACTION_PROCESSED",
+        "message": "Transaction processed in real-time"
       },
-      "ResultPath": "$.result",
       "End": true
     },
-    "InvalidEvent": {
+    "LogAnalytics": {
       "Type": "Pass",
       "Result": {
-        "status": "REJECTED",
-        "message": "Event validation failed"
+        "status": "ANALYTICS_LOGGED",
+        "message": "Analytics event logged"
       },
-      "ResultPath": "$.result",
+      "End": true
+    },
+    "LogEvent": {
+      "Type": "Pass",
+      "Result": {
+        "status": "EVENT_LOGGED",
+        "message": "General event logged"
+      },
       "End": true
     }
   }
 }
-EOF
 ```
 
-2. Replace placeholders:
-```bash
-sed -i "s/\[ACCOUNT-ID\]/$(aws sts get-caller-identity --query Account --output text)/g" express-workflow.json
-sed -i "s/\[your-username\]/[your-username]/g" express-workflow.json
-```
+5. Configure settings:
+   - **State machine name**: `[your-username]-express-workflow`
+   - **Execution role**: Select `[your-username]-stepfunctions-role`
 
-3. Create the express state machine:
-```bash
-aws stepfunctions create-state-machine \
-  --name "[your-username]-express-workflow" \
-  --definition file://express-workflow.json \
-  --role-arn arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-stepfunctions-role \
-  --type EXPRESS \
-  --logging-configuration level=ALL,includeExecutionData=true,destinations='[{"cloudWatchLogsLogGroup":{"logGroupArn":"arn:aws:logs:us-east-1:[ACCOUNT-ID]:log-group:/aws/stepfunctions/[your-username]-express"}}]'
-```
+6. Click **Create state machine**
 
 ---
 
-## Task 4: Test Workflow Executions
+## Task 5: Test Workflows (Console)
 
-### Step 4.1: Test Standard Workflow
+### Step 5.1: Test Standard Workflow
 
-1. Create test input for successful order:
-```bash
-cat > successful-order.json << 'EOF'
+1. Navigate to your Standard workflow: `[your-username]-order-processing-workflow`
+2. Click **Start execution**
+3. **Name**: `successful-order-test`
+4. **Input**: Paste the following JSON:
+
+```json
 {
   "orderId": "order-12345",
   "customerId": "customer-67890",
@@ -738,28 +861,20 @@ cat > successful-order.json << 'EOF'
     }
   ]
 }
-EOF
 ```
 
-2. Execute the standard workflow:
-```bash
-aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow \
-  --name "test-execution-$(date +%s)" \
-  --input file://successful-order.json
-```
+5. Click **Start execution**
+6. Observe the execution in the **Graph view**
+7. Monitor state transitions in real-time
 
-3. Note the execution ARN and check status:
-```bash
-aws stepfunctions describe-execution \
-  --execution-arn [execution-arn-from-above]
-```
+### Step 5.2: Test Express Workflow
 
-### Step 4.2: Test Express Workflow
+1. Navigate to your Express workflow: `[your-username]-express-workflow`
+2. Click **Start execution**
+3. **Name**: `realtime-purchase-test`
+4. **Input**: Paste the following JSON:
 
-1. Create test input for express workflow:
-```bash
-cat > realtime-event.json << 'EOF'
+```json
 {
   "userId": "user-123",
   "action": "purchase",
@@ -769,44 +884,102 @@ cat > realtime-event.json << 'EOF'
     "amount": 29.99
   }
 }
-EOF
 ```
 
-2. Execute the express workflow:
-```bash
-aws stepfunctions start-sync-execution \
-  --state-machine-arn arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-express-workflow \
-  --name "express-test-$(date +%s)" \
-  --input file://realtime-event.json
-```
+5. Click **Start execution**
+6. Note the faster execution time compared to Standard workflow
 
-### Step 4.3: Test Error Handling
+### Step 5.3: Test Error Handling
 
-1. Create invalid order to test error handling:
-```bash
-cat > invalid-order.json << 'EOF'
+1. Go back to your Standard workflow
+2. Click **Start execution**
+3. **Name**: `invalid-order-test`
+4. **Input**: Paste invalid data:
+
+```json
 {
   "orderId": "",
   "customerId": "",
   "amount": -10,
   "items": []
 }
-EOF
 ```
 
-2. Execute with invalid data:
-```bash
-aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow \
-  --name "error-test-$(date +%s)" \
-  --input file://invalid-order.json
-```
+5. Click **Start execution**
+6. Observe how the workflow handles validation errors
+7. Check the **ValidationFailed** state execution
+
+### Step 5.4: View Execution Details
+
+1. Click on any completed execution
+2. Review the **Execution details**:
+   - **Input and output** of each state
+   - **Duration** of each step
+   - **Resource usage** and costs
+
+3. Click **Step details** for individual states
+4. Review **CloudWatch logs** for Lambda function outputs
 
 ---
 
-## Task 5: Implement Callback Pattern
+## Task 6: Create CloudWatch Dashboard (Console)
 
-### Step 5.1: Create Long-Running Task Function
+### Step 6.1: Create Step Functions Dashboard
+
+1. Navigate to **CloudWatch** in the AWS Console
+2. Click **Dashboards**
+3. Click **Create dashboard**
+4. **Dashboard name**: `[your-username]-stepfunctions-monitoring`
+5. Click **Create dashboard**
+
+### Step 6.2: Add Step Functions Metrics
+
+1. Click **Add widget**
+2. Select **Line** and click **Configure**
+3. **Metrics** tab:
+   - **Browse**: AWS/States
+   - **StateMachineName**: Select both your state machines
+   - **Metrics**: ExecutionsSucceeded, ExecutionsFailed, ExecutionsStarted
+
+4. **Graphed metrics** tab:
+   - **Period**: 1 minute
+   - **Statistic**: Sum
+5. **Widget title**: Step Functions Executions
+6. Click **Create widget**
+
+### Step 6.3: Add Execution Duration Metrics
+
+1. Click **Add widget**
+2. Select **Number** and click **Configure**
+3. **Metrics** tab:
+   - **Browse**: AWS/States
+   - **StateMachineName**: Select your standard workflow
+   - **Metrics**: ExecutionTime
+
+4. **Graphed metrics** tab:
+   - **Statistic**: Average
+5. **Widget title**: Average Execution Duration
+6. Click **Create widget**
+
+### Step 6.4: Add Lambda Integration Metrics
+
+1. Click **Add widget**
+2. Select **Line** and click **Configure**
+3. **Metrics** tab:
+   - **Browse**: AWS/Lambda
+   - **FunctionName**: Select all your workflow functions
+   - **Metrics**: Invocations, Errors, Duration
+
+4. **Widget title**: Lambda Function Performance
+5. Click **Create widget**
+
+6. Click **Save dashboard**
+
+---
+
+## Task 7: Implement Callback Pattern (Cloud9)
+
+### Step 7.1: Create Long-Running Task Function
 
 1. Create directory for long-running task:
 ```bash
@@ -820,6 +993,7 @@ cd ~/environment/[your-username]-long-running-task
 import json
 import boto3
 import uuid
+import time
 
 stepfunctions = boto3.client('stepfunctions')
 
@@ -830,24 +1004,45 @@ def lambda_handler(event, context):
     
     print(f"Starting long-running task: {json.dumps(event, indent=2)}")
     
-    # Extract task token
+    # Extract task token and input
     task_token = event.get('taskToken')
+    task_input = event.get('input', {})
     task_id = str(uuid.uuid4())
-    
-    # In a real scenario, this would start an external process
-    # For demo, we'll simulate by scheduling a callback
     
     print(f"Task {task_id} started. Will complete asynchronously.")
     
-    # Store task information (in real scenario, save to database)
-    task_info = {
-        'taskId': task_id,
-        'taskToken': task_token,
-        'status': 'IN_PROGRESS',
-        'startTime': event.get('timestamp', 'unknown')
-    }
+    # In a real scenario, this would start an external process
+    # For demo, we'll simulate by immediately sending success callback
     
-    # Return task info immediately
+    try:
+        # Simulate some quick processing
+        processing_result = {
+            'taskId': task_id,
+            'status': 'COMPLETED',
+            'result': f"Task completed successfully for input: {task_input.get('operation', 'unknown')}",
+            'processingTime': 2.5,
+            'completedAt': time.time()
+        }
+        
+        # Send success callback to Step Functions
+        stepfunctions.send_task_success(
+            taskToken=task_token,
+            output=json.dumps(processing_result)
+        )
+        
+        print(f"Task {task_id} completed and callback sent")
+        
+    except Exception as e:
+        print(f"Task {task_id} failed: {str(e)}")
+        
+        # Send failure callback
+        stepfunctions.send_task_failure(
+            taskToken=task_token,
+            error='TaskExecutionError',
+            cause=str(e)
+        )
+    
+    # Return task info immediately (this function completes while task continues)
     return {
         'taskId': task_id,
         'status': 'STARTED',
@@ -869,11 +1064,15 @@ aws lambda create-function \
   --description "Simulates long-running task with callback"
 ```
 
-### Step 5.2: Create Callback Workflow
+### Step 7.2: Create Callback Workflow (Console)
 
-1. Create callback workflow definition:
-```bash
-cat > callback-workflow.json << 'EOF'
+1. In Step Functions console, click **Create state machine**
+2. Choose **Write your workflow in code**
+3. Select **Standard** as the type
+
+4. Paste the following definition:
+
+```json
 {
   "Comment": "Workflow demonstrating callback pattern",
   "StartAt": "StartLongRunningTask",
@@ -913,7 +1112,7 @@ cat > callback-workflow.json << 'EOF'
       "Type": "Pass",
       "Result": {
         "status": "TIMEOUT",
-        "message": "Task timed out"
+        "message": "Task timed out after 5 minutes"
       },
       "End": true
     },
@@ -921,114 +1120,95 @@ cat > callback-workflow.json << 'EOF'
       "Type": "Pass",
       "Result": {
         "status": "FAILED",
-        "message": "Task failed"
+        "message": "Task failed during execution"
       },
       "End": true
     }
   }
 }
-EOF
 ```
 
-2. Replace placeholders and create callback workflow:
-```bash
-sed -i "s/\[ACCOUNT-ID\]/$(aws sts get-caller-identity --query Account --output text)/g" callback-workflow.json
-sed -i "s/\[your-username\]/[your-username]/g" callback-workflow.json
+5. Configure settings:
+   - **State machine name**: `[your-username]-callback-workflow`
+   - **Execution role**: Select `[your-username]-stepfunctions-role`
 
-aws stepfunctions create-state-machine \
-  --name "[your-username]-callback-workflow" \
-  --definition file://callback-workflow.json \
-  --role-arn arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-stepfunctions-role \
-  --type STANDARD
-```
+6. Click **Create state machine**
 
----
+### Step 7.3: Test Callback Pattern
 
-## Task 6: Monitor and Debug Workflows
+1. Click **Start execution** on your callback workflow
+2. **Name**: `callback-test`
+3. **Input**:
 
-### Step 6.1: Create CloudWatch Dashboard
-
-1. Create monitoring dashboard:
-```bash
-cat > stepfunctions-dashboard.json << 'EOF'
+```json
 {
-    "widgets": [
-        {
-            "type": "metric",
-            "x": 0,
-            "y": 0,
-            "width": 12,
-            "height": 6,
-            "properties": {
-                "metrics": [
-                    [ "AWS/States", "ExecutionsSucceeded", "StateMachineArn", "arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow" ],
-                    [ ".", "ExecutionsFailed", ".", "." ],
-                    [ ".", "ExecutionsTimedOut", ".", "." ]
-                ],
-                "period": 300,
-                "stat": "Sum",
-                "region": "us-east-1",
-                "title": "Order Processing Workflow Executions"
-            }
-        },
-        {
-            "type": "metric",
-            "x": 0,
-            "y": 6,
-            "width": 12,
-            "height": 6,
-            "properties": {
-                "metrics": [
-                    [ "AWS/States", "ExecutionTime", "StateMachineArn", "arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow" ]
-                ],
-                "period": 300,
-                "stat": "Average",
-                "region": "us-east-1",
-                "title": "Average Execution Time"
-            }
-        }
-    ]
+  "operation": "long_running_analysis",
+  "data": {
+    "type": "financial_report",
+    "complexity": "high"
+  }
 }
-EOF
-
-sed -i "s/\[ACCOUNT-ID\]/$(aws sts get-caller-identity --query Account --output text)/g" stepfunctions-dashboard.json
-sed -i "s/\[your-username\]/[your-username]/g" stepfunctions-dashboard.json
-
-aws cloudwatch put-dashboard \
-  --dashboard-name "[your-username]-stepfunctions-monitoring" \
-  --dashboard-body file://stepfunctions-dashboard.json
 ```
 
-### Step 6.2: Analyze Execution History
-
-1. List recent executions:
-```bash
-aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow \
-  --max-items 10
-```
-
-2. Get execution history for detailed analysis:
-```bash
-aws stepfunctions get-execution-history \
-  --execution-arn [execution-arn] \
-  --max-items 50
-```
+4. Click **Start execution**
+5. Observe how the workflow waits for the callback
+6. Monitor the execution until the callback completes the workflow
 
 ---
 
-## Task 7: Performance Testing
+## Task 8: Monitor Workflow Performance (Console)
 
-### Step 7.1: Bulk Execution Test
+### Step 8.1: Analyze Execution History
 
-1. Create bulk test script:
+1. Navigate to your Standard workflow
+2. Click the **Executions** tab
+3. Review execution history:
+   - **Status** (Succeeded, Failed, Timed out)
+   - **Duration**
+   - **Start and end times**
+
+4. Click on a specific execution to view:
+   - **Execution input and output**
+   - **State machine graph** with execution path
+   - **Step details** with timing information
+   - **CloudWatch logs** links
+
+### Step 8.2: Performance Analysis
+
+1. Click **Metrics** tab on your state machine
+2. Review performance metrics:
+   - **Execution rate**
+   - **Success rate**
+   - **Average duration**
+   - **Error patterns**
+
+3. Use the time range selector to analyze different periods
+4. Compare Standard vs Express workflow performance
+
+### Step 8.3: Optimize Based on Metrics
+
+1. Identify any slow-performing states
+2. Review Lambda function duration in your dashboard
+3. Note any patterns in failures or timeouts
+4. Consider adjustments to:
+   - **Retry policies**
+   - **Timeout values**
+   - **Parallel processing opportunities**
+
+---
+
+## Task 9: Bulk Testing and Performance Validation
+
+### Step 9.1: Create Bulk Test Script
+
+1. In Cloud9, create a bulk testing script:
 ```bash
-cat > bulk_test.sh << 'EOF'
+cat > bulk_workflow_test.sh << 'EOF'
 #!/bin/bash
 
 STATE_MACHINE_ARN="arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow"
 
-echo "Starting bulk execution test..."
+echo "Starting bulk execution test for Step Functions..."
 
 for i in {1..10}; do
     EXECUTION_NAME="bulk-test-$i-$(date +%s)"
@@ -1062,18 +1242,37 @@ EOL
 done
 
 echo "Bulk test completed. Started 10 executions."
+
+# Wait a moment then check execution status
+sleep 10
+
+echo "Checking execution status..."
+aws stepfunctions list-executions \
+  --state-machine-arn $STATE_MACHINE_ARN \
+  --max-items 10 \
+  --query 'executions[].{Name:name,Status:status,StartDate:startDate}'
 EOF
 
-chmod +x bulk_test.sh
+chmod +x bulk_workflow_test.sh
 ```
 
-2. Replace placeholder and run test:
+2. Update the script with your values:
 ```bash
-sed -i "s/\[ACCOUNT-ID\]/$(aws sts get-caller-identity --query Account --output text)/g" bulk_test.sh
-sed -i "s/\[your-username\]/[your-username]/g" bulk_test.sh
-
-./bulk_test.sh
+sed -i "s/\[ACCOUNT-ID\]/$(aws sts get-caller-identity --query Account --output text)/g" bulk_workflow_test.sh
+sed -i "s/\[your-username\]/[your-username]/g" bulk_workflow_test.sh
 ```
+
+3. Run the bulk test:
+```bash
+./bulk_workflow_test.sh
+```
+
+### Step 9.2: Monitor Bulk Execution
+
+1. In the Step Functions console, monitor the bulk executions
+2. Check your CloudWatch dashboard for performance metrics
+3. Observe how the workflows handle concurrent executions
+4. Review any throttling or error patterns
 
 ---
 
@@ -1084,24 +1283,26 @@ sed -i "s/\[your-username\]/[your-username]/g" bulk_test.sh
 Verify that you have successfully completed the following:
 
 - [ ] Created four Lambda functions for workflow orchestration
-- [ ] Built a Standard Step Functions workflow with error handling
+- [ ] Built a Standard Step Functions workflow with error handling and parallel processing
 - [ ] Created an Express workflow for real-time processing
 - [ ] Implemented callback pattern for long-running tasks
 - [ ] Successfully tested workflow executions with valid and invalid data
-- [ ] Created CloudWatch dashboard for monitoring
+- [ ] Created CloudWatch dashboard for Step Functions monitoring
 - [ ] Performed bulk execution testing
 - [ ] Applied username prefixing to all resources
 
 ### Expected Results
 
 Your Step Functions workflows should:
-1. Execute successfully with valid input data
-2. Handle errors gracefully with proper error states
-3. Process multiple branches in parallel
-4. Demonstrate retry logic for transient failures
-5. Show execution history and state transitions
-6. Provide monitoring metrics in CloudWatch
-7. Support both Standard and Express execution types
+
+1. **Execute successfully** with valid input data
+2. **Handle errors gracefully** with proper error states and retry logic
+3. **Process branches in parallel** for improved performance
+4. **Demonstrate retry mechanisms** for transient failures
+5. **Show execution history** and state transitions
+6. **Provide monitoring metrics** in CloudWatch
+7. **Support both Standard and Express** execution types
+8. **Handle long-running processes** with callback patterns
 
 ---
 
@@ -1110,31 +1311,36 @@ Your Step Functions workflows should:
 ### Common Issues and Solutions
 
 **Issue:** State machine execution fails with permission errors
-- **Solution:** Verify IAM role has proper permissions for Lambda invocation
-- Check that Lambda functions exist and are correctly named
-- Ensure Step Functions service role is correctly configured
+- **Console Check**: Verify IAM role permissions in IAM console
+- **Console Check**: Check Lambda function execution role
+- **Solution**: Ensure Step Functions role can invoke Lambda functions
 
 **Issue:** Workflow doesn't progress through states
-- **Solution:** Check state machine definition for syntax errors
-- Verify Lambda function returns proper JSON structure
-- Review execution history for specific error details
+- **Console Check**: Review state machine definition syntax
+- **Console Debug**: Check execution input/output in execution details
+- **Solution**: Verify Lambda functions return proper JSON structure
 
 **Issue:** Parallel execution failures
-- **Solution:** Check that both parallel branches can execute independently
-- Verify Lambda functions handle partial input correctly
-- Review timeout settings for parallel tasks
+- **Console Monitor**: Check both parallel branches in graph view
+- **Console Debug**: Review individual branch execution logs
+- **Solution**: Ensure Lambda functions handle partial input correctly
 
-**Issue:** Express workflow not executing
-- **Solution:** Verify CloudWatch Logs are properly configured
-- Check that express workflow uses sync execution
-- Ensure proper IAM permissions for logging
+**Issue:** Express workflow performance issues
+- **Console Check**: Verify CloudWatch Logs configuration
+- **Console Monitor**: Check execution metrics and duration
+- **Solution**: Optimize Lambda function cold starts
 
 ---
 
 ## Clean Up (Optional)
 
-To clean up resources after the lab:
+### Via Console:
+1. **Step Functions**: Delete all three state machines
+2. **Lambda**: Delete all workflow functions
+3. **CloudWatch**: Delete the dashboard
+4. **IAM**: Delete the Step Functions role
 
+### Via CLI:
 ```bash
 # Delete Step Functions state machines
 aws stepfunctions delete-state-machine --state-machine-arn arn:aws:states:us-east-1:[ACCOUNT-ID]:stateMachine:[your-username]-order-processing-workflow
@@ -1148,14 +1354,6 @@ aws lambda delete-function --function-name [your-username]-inventory-updater
 aws lambda delete-function --function-name [your-username]-order-fulfillment
 aws lambda delete-function --function-name [your-username]-realtime-validator
 aws lambda delete-function --function-name [your-username]-long-running-task
-
-# Delete IAM role
-aws iam delete-role-policy --role-name [your-username]-stepfunctions-role --policy-name StepFunctionsExecutionPolicy
-aws iam detach-role-policy --role-name [your-username]-stepfunctions-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaRole
-aws iam delete-role --role-name [your-username]-stepfunctions-role
-
-# Delete CloudWatch dashboard
-aws cloudwatch delete-dashboards --dashboard-names [your-username]-stepfunctions-monitoring
 ```
 
 ---
@@ -1163,15 +1361,29 @@ aws cloudwatch delete-dashboards --dashboard-names [your-username]-stepfunctions
 ## Key Takeaways
 
 From this lab, you should understand:
-1. **Workflow Orchestration:** How Step Functions coordinate multiple services
-2. **State Machine Design:** Sequential, parallel, and conditional logic patterns
-3. **Error Handling:** Retry mechanisms, catch blocks, and graceful degradation
-4. **Standard vs Express:** Different workflow types for different use cases
-5. **Callback Patterns:** Handling long-running and external processes
-6. **Monitoring:** CloudWatch integration for workflow observability
+
+1. **Workflow Orchestration**: How Step Functions coordinate multiple services and business processes
+2. **State Machine Design**: Sequential, parallel, and conditional logic patterns for complex workflows
+3. **Error Handling**: Retry mechanisms, catch blocks, and graceful degradation strategies
+4. **Standard vs Express**: Different workflow types optimized for different use cases
+5. **Callback Patterns**: Handling long-running and external processes with task tokens
+6. **Monitoring and Debugging**: CloudWatch integration and execution analysis tools
+7. **Console vs CLI**: When to use visual workflow design vs programmatic management
+8. **Production Considerations**: Performance optimization, error handling, and scalability patterns
+
+### Workflow Pattern Summary
+
+| Aspect | Standard | Express |
+|--------|----------|---------|
+| **Use Case** | Long-running processes | Real-time processing |
+| **Duration** | Up to 1 year | Up to 5 minutes |
+| **History** | Full execution history | CloudWatch Logs only |
+| **Cost** | Per state transition | Per execution |
+| **Retry** | Built-in retry logic | Limited retry capability |
+| **Monitoring** | Detailed console view | Metrics-based monitoring |
 
 ---
 
 ## Next Steps
 
-In the next lab, you will explore observability and monitoring patterns to gain comprehensive insights into your serverless applications.
+In the next lab, you will explore comprehensive observability and monitoring patterns using CloudWatch, X-Ray, and other AWS monitoring services to gain deep insights into your serverless applications.

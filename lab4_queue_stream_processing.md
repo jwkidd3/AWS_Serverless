@@ -1,4 +1,4 @@
-# Developing Serverless Solutions on AWS - Day 1 - Lab 4
+# Developing Serverless Solutions on AWS - Lab 4
 ## Queue and Stream Processing
 
 **Lab Duration:** 90 minutes
@@ -45,54 +45,141 @@ Continue using your AWS Cloud9 environment from previous labs.
 
 ---
 
-## Task 1: Implement SQS Queue Processing
+## Task 1: Create SQS Queues (Console)
 
-### Step 1.1: Create SQS Queues
+### Step 1.1: Create Dead Letter Queue
 
-1. Create the main processing queue:
-```bash
-aws sqs create-queue \
-  --queue-name "[your-username]-order-processing-queue" \
-  --attributes '{
-    "VisibilityTimeoutSeconds": "300",
-    "MessageRetentionPeriod": "1209600",
-    "DelaySeconds": "0",
-    "ReceiveMessageWaitTimeSeconds": "20"
-  }'
+1. Navigate to **Amazon SQS** in the AWS Console
+2. Click **Create queue**
+3. Configure the dead letter queue:
+   - **Type**: Standard
+   - **Name**: `[your-username]-order-dlq`
+   - **Visibility timeout**: 30 seconds (default)
+   - **Message retention period**: 14 days
+   - **Delivery delay**: 0 seconds
+   - **Receive message wait time**: 0 seconds (default)
+   - **Tags**: Add tag with Key: `Project`, Value: `ServerlessLab`
+4. Click **Create queue**
+5. **Copy the Queue ARN** from the Details tab for later use
+
+### Step 1.2: Create Main Processing Queue with DLQ
+
+1. Click **Create queue**
+2. Configure the main processing queue:
+   - **Type**: Standard  
+   - **Name**: `[your-username]-order-processing-queue`
+   - **Visibility timeout**: 300 seconds (5 minutes)
+   - **Message retention period**: 14 days
+   - **Delivery delay**: 0 seconds
+   - **Receive message wait time**: 20 seconds (long polling)
+
+3. Scroll down to **Dead Letter Queue** section:
+   - **Enable**: Checked
+   - **Choose queue**: Select `[your-username]-order-dlq`
+   - **Maximum receives**: 3
+
+4. **Access Policy** (Advanced):
+   - Leave as default for this lab
+
+5. **Tags**: Add tag with Key: `Project`, Value: `ServerlessLab`
+6. Click **Create queue**
+7. **Copy the Queue URL** from the Details tab for later use
+
+### Step 1.3: Verify Queue Configuration (Console)
+
+1. In the SQS console, click on your main queue: `[your-username]-order-processing-queue`
+2. Click the **Dead Letter Queue** tab
+3. Verify that your DLQ is configured with **Maximum receives: 3**
+4. Click the **Monitoring** tab to see queue metrics (will be empty initially)
+
+---
+
+## Task 2: Create Kinesis Data Stream (Console)
+
+### Step 2.1: Create Kinesis Stream
+
+1. Navigate to **Amazon Kinesis** in the AWS Console
+2. Click **Create data stream**
+3. Configure the stream:
+   - **Data stream name**: `[your-username]-analytics-stream`
+   - **Capacity mode**: Provisioned
+   - **Number of shards**: 2
+   - **Data retention period**: 24 hours
+   - **Server-side encryption**: Disabled (for lab simplicity)
+
+4. **Tags**: Add tag with Key: `Project`, Value: `ServerlessLab`
+5. Click **Create data stream**
+
+### Step 2.2: Monitor Stream Creation
+
+1. Wait for the stream status to change from **Creating** to **Active**
+2. Click on your stream name to view details
+3. Click the **Shards** tab to see the 2 shards created
+4. Click the **Monitoring** tab to see stream metrics (will be empty initially)
+5. **Copy the Stream ARN** from the Details tab for later use
+
+---
+
+## Task 3: Create IAM Role for Lambda Functions (Console)
+
+### Step 3.1: Create Lambda Execution Role
+
+1. Navigate to **IAM** in the AWS Console
+2. Click **Roles** in the left navigation
+3. Click **Create role**
+4. Configure trust relationship:
+   - **Trusted entity type**: AWS service
+   - **Service**: Lambda
+   - **Use case**: Lambda
+5. Click **Next**
+
+### Step 3.2: Attach Permissions Policies
+
+1. Search and select the following managed policies:
+   - `AWSLambdaBasicExecutionRole`
+   - `AWSLambdaSQSQueueExecutionRole`
+   - `AWSLambdaKinesisExecutionRole`
+
+2. Click **Next**
+3. Configure role details:
+   - **Role name**: `[your-username]-messaging-lambda-role`
+   - **Description**: `Lambda execution role for SQS and Kinesis processing`
+   - **Tags**: Add tag with Key: `Project`, Value: `ServerlessLab`
+
+4. Click **Create role**
+
+### Step 3.3: Add Custom SQS Permissions
+
+1. Click on your newly created role
+2. Click **Add permissions** → **Create inline policy**
+3. Click the **JSON** tab and paste:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sqs:SendMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
 ```
 
-2. Create dead letter queue:
-```bash
-aws sqs create-queue \
-  --queue-name "[your-username]-order-dlq" \
-  --attributes '{
-    "MessageRetentionPeriod": "1209600"
-  }'
-```
+4. Click **Next**
+5. **Name**: `SQSProducerPolicy`
+6. Click **Create policy**
 
-3. Get queue URLs and ARNs:
-```bash
-# Get main queue details
-aws sqs get-queue-attributes \
-  --queue-url "https://sqs.us-east-1.amazonaws.com/[ACCOUNT-ID]/[your-username]-order-processing-queue" \
-  --attribute-names All
+---
 
-# Get DLQ details
-aws sqs get-queue-attributes \
-  --queue-url "https://sqs.us-east-1.amazonaws.com/[ACCOUNT-ID]/[your-username]-order-dlq" \
-  --attribute-names All
-```
+## Task 4: Create Lambda Functions (Cloud9)
 
-4. Configure dead letter queue policy on main queue:
-```bash
-aws sqs set-queue-attributes \
-  --queue-url "https://sqs.us-east-1.amazonaws.com/[ACCOUNT-ID]/[your-username]-order-processing-queue" \
-  --attributes '{
-    "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:us-east-1:[ACCOUNT-ID]:[your-username]-order-dlq\",\"maxReceiveCount\":3}"
-  }'
-```
-
-### Step 1.2: Create SQS Message Producer
+### Step 4.1: Create SQS Message Producer
 
 1. Create directory for SQS producer:
 ```bash
@@ -105,95 +192,98 @@ cd ~/environment/[your-username]-sqs-producer
 ```python
 import json
 import boto3
-import datetime
 import uuid
-import os
+import datetime
+from botocore.exceptions import ClientError
 
 # Initialize SQS client
 sqs = boto3.client('sqs')
 
 def lambda_handler(event, context):
     """
-    Produces messages to SQS queue for processing
+    SQS message producer that sends order processing messages
     """
     
-    # Extract request parameters
-    body = json.loads(event.get('body', '{}'))
-    message_type = body.get('messageType', 'OrderProcessing')
-    batch_size = body.get('batchSize', 1)
-    simulate_failure = body.get('simulateFailure', False)
-    
-    queue_url = os.environ['QUEUE_URL']
-    messages_sent = []
-    
     try:
+        # Extract parameters from the request
+        body = json.loads(event.get('body', '{}'))
+        message_type = body.get('messageType', 'OrderProcessing')
+        batch_size = body.get('batchSize', 5)
+        simulate_failure = body.get('simulateFailure', False)
+        
+        queue_url = '[your-queue-url]'  # Replace with actual queue URL
+        messages_sent = []
+        
         for i in range(batch_size):
-            # Create message payload
-            message_payload = {
-                'messageId': str(uuid.uuid4()),
-                'messageType': message_type,
+            # Generate order data
+            order_data = {
+                'orderId': f"ORD-{uuid.uuid4().hex[:8].upper()}",
+                'customerId': f"CUST-{uuid.uuid4().hex[:6].upper()}",
+                'amount': round(50 + (i * 25.99), 2),
+                'items': [
+                    {
+                        'productId': f"PROD-{uuid.uuid4().hex[:4].upper()}",
+                        'quantity': i + 1,
+                        'price': round(25.99 + (i * 5), 2)
+                    }
+                ],
                 'timestamp': datetime.datetime.now().isoformat(),
-                'batchIndex': i + 1,
-                'totalBatch': batch_size,
-                'simulateFailure': simulate_failure and (i == 0),  # First message fails if requested
-                'orderData': {
-                    'orderId': f'order-{uuid.uuid4().hex[:8]}',
-                    'customerId': f'customer-{uuid.uuid4().hex[:8]}',
-                    'amount': round(10.99 + (i * 10.50), 2),
-                    'items': [
-                        {
-                            'productId': f'product-{uuid.uuid4().hex[:6]}',
-                            'quantity': (i % 3) + 1,
-                            'price': round(5.99 + (i * 2.25), 2)
-                        }
-                    ]
-                }
+                'priority': 'high' if i % 3 == 0 else 'normal',
+                'simulateFailure': simulate_failure and i == 0  # Only first message fails
             }
             
             # Send message to SQS
             response = sqs.send_message(
                 QueueUrl=queue_url,
-                MessageBody=json.dumps(message_payload),
+                MessageBody=json.dumps(order_data),
                 MessageAttributes={
                     'MessageType': {
                         'StringValue': message_type,
                         'DataType': 'String'
                     },
-                    'BatchIndex': {
-                        'StringValue': str(i + 1),
+                    'Priority': {
+                        'StringValue': order_data['priority'],
                         'DataType': 'String'
                     }
                 }
             )
             
             messages_sent.append({
+                'orderId': order_data['orderId'],
                 'messageId': response['MessageId'],
-                'payload': message_payload
+                'priority': order_data['priority']
             })
             
-            print(f"Sent message {i + 1}/{batch_size}: {response['MessageId']}")
+            print(f"Sent order {order_data['orderId']} to SQS with message ID {response['MessageId']}")
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
             'body': json.dumps({
-                'message': f'Successfully sent {len(messages_sent)} messages to queue',
-                'messagesSent': len(messages_sent),
-                'queueUrl': queue_url,
-                'messages': messages_sent
-            }, indent=2)
+                'message': f'Successfully sent {len(messages_sent)} messages to SQS',
+                'messages': messages_sent,
+                'queueUrl': queue_url
+            })
         }
         
-    except Exception as e:
-        print(f"Error sending messages: {str(e)}")
+    except ClientError as e:
+        print(f"Error sending messages to SQS: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': f'Failed to send messages: {str(e)}'})
+            'body': json.dumps({'error': str(e)})
+        }
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Internal server error'})
         }
 ```
 
-### Step 1.3: Create SQS Message Processor
+### Step 4.2: Create SQS Message Processor
 
 1. Create directory for SQS processor:
 ```bash
@@ -205,159 +295,115 @@ cd ~/environment/[your-username]-sqs-processor
 
 ```python
 import json
-import boto3
 import time
 import random
 
 def lambda_handler(event, context):
     """
-    Processes messages from SQS queue with error handling
+    SQS message processor with retry and failure handling
     """
     
-    print(f"Processing {len(event['Records'])} messages from SQS")
+    print(f"Received SQS event with {len(event.get('Records', []))} records")
     
-    processed_messages = []
-    failed_messages = []
+    batch_item_failures = []
+    successfully_processed = []
     
     for record in event['Records']:
         try:
-            # Extract message details
+            # Extract message data
             message_id = record['messageId']
             receipt_handle = record['receiptHandle']
             message_body = json.loads(record['body'])
+            message_attributes = record.get('messageAttributes', {})
             
-            print(f"Processing message: {message_id}")
-            print(f"Message body: {json.dumps(message_body, indent=2)}")
+            print(f"Processing message {message_id}")
+            print(f"Order data: {json.dumps(message_body, indent=2)}")
             
-            # Check if this message should simulate failure
-            if message_body.get('simulateFailure', False):
-                print(f"🚨 Simulating failure for message {message_id}")
-                raise Exception("Simulated processing failure")
+            # Extract order information
+            order_id = message_body.get('orderId', 'unknown')
+            customer_id = message_body.get('customerId', 'unknown')
+            amount = message_body.get('amount', 0)
+            items = message_body.get('items', [])
+            priority = message_attributes.get('Priority', {}).get('stringValue', 'normal')
+            simulate_failure = message_body.get('simulateFailure', False)
             
-            # Extract order data
-            order_data = message_body.get('orderData', {})
-            order_id = order_data.get('orderId', 'unknown')
-            customer_id = order_data.get('customerId', 'unknown')
-            amount = order_data.get('amount', 0)
+            # Simulate processing failure for testing DLQ
+            if simulate_failure:
+                print(f"❌ Simulating failure for order {order_id}")
+                raise Exception(f"Simulated processing failure for order {order_id}")
             
-            # Simulate processing time
-            processing_time = random.uniform(0.1, 0.5)
+            # Simulate processing time based on priority
+            processing_time = 1 if priority == 'high' else 2
             time.sleep(processing_time)
             
             # Process the order
-            print(f"📦 Processing order {order_id}")
-            print(f"👤 Customer: {customer_id}")
-            print(f"💰 Amount: ${amount}")
-            print(f"⏱️ Processing time: {processing_time:.2f}s")
+            print(f"🔄 Processing {priority} priority order {order_id}")
+            print(f"  - Customer: {customer_id}")
+            print(f"  - Amount: ${amount}")
+            print(f"  - Items: {len(items)} items")
             
-            # Simulate business logic
-            if amount > 100:
-                print(f"🔥 High-value order detected: ${amount}")
-                print(f"🎁 Applying premium processing for order {order_id}")
+            # Simulate order processing steps
+            print(f"  ✅ Validated payment information")
+            print(f"  ✅ Reserved inventory for {len(items)} items")
+            print(f"  ✅ Calculated shipping and taxes")
+            print(f"  ✅ Created fulfillment order")
+            print(f"  ✅ Sent confirmation to customer {customer_id}")
+            
+            successfully_processed.append({
+                'messageId': message_id,
+                'orderId': order_id,
+                'priority': priority
+            })
             
             print(f"✅ Successfully processed order {order_id}")
             
-            processed_messages.append({
-                'messageId': message_id,
-                'orderId': order_id,
-                'status': 'processed',
-                'processingTime': processing_time
-            })
-            
         except Exception as e:
             print(f"❌ Error processing message {message_id}: {str(e)}")
-            
-            # Record failed message details
-            failed_messages.append({
-                'messageId': message_id,
-                'error': str(e),
-                'body': record['body']
+            # Add to batch item failures for retry
+            batch_item_failures.append({
+                'itemIdentifier': message_id
             })
-            
-            # Re-raise exception to trigger SQS retry mechanism
-            raise e
     
-    # Log processing summary
-    print(f"📊 Processing Summary:")
-    print(f"   ✅ Processed: {len(processed_messages)}")
-    print(f"   ❌ Failed: {len(failed_messages)}")
+    print(f"Processing summary:")
+    print(f"  - Successfully processed: {len(successfully_processed)}")
+    print(f"  - Failed (will retry): {len(batch_item_failures)}")
     
-    if failed_messages:
-        print(f"⚠️ {len(failed_messages)} messages will be retried or sent to DLQ")
-    
-    return {
-        'batchItemFailures': [
-            {'itemIdentifier': msg['messageId']} for msg in failed_messages
-        ]
+    # Return batch item failures for SQS to retry
+    response = {
+        'statusCode': 200,
+        'batchItemFailures': batch_item_failures
     }
+    
+    if batch_item_failures:
+        print(f"⚠️ Returning {len(batch_item_failures)} messages for retry")
+    
+    return response
 ```
 
-### Step 1.4: Deploy SQS Components
+### Step 4.3: Deploy SQS Lambda Functions
 
-1. Create IAM policy for SQS access:
-```bash
-cat > sqs-policy.json << 'EOF'
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "sqs:SendMessage",
-                "sqs:ReceiveMessage",
-                "sqs:DeleteMessage",
-                "sqs:GetQueueAttributes"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-EOF
-```
-
-2. Create IAM role:
-```bash
-aws iam create-role \
-  --role-name [your-username]-sqs-lambda-role \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Principal": {
-          "Service": "lambda.amazonaws.com"
-        },
-        "Action": "sts:AssumeRole"
-      }
-    ]
-  }'
-
-aws iam attach-role-policy \
-  --role-name [your-username]-sqs-lambda-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-
-aws iam put-role-policy \
-  --role-name [your-username]-sqs-lambda-role \
-  --policy-name SQSAccess \
-  --policy-document file://sqs-policy.json
-```
-
-3. Deploy SQS producer:
+1. Update the queue URL in the producer code:
 ```bash
 cd ~/environment/[your-username]-sqs-producer
+# Replace [your-queue-url] with your actual queue URL
+sed -i "s|\[your-queue-url\]|https://sqs.us-east-1.amazonaws.com/[ACCOUNT-ID]/[your-username]-order-processing-queue|g" sqs_producer.py
+```
+
+2. Deploy SQS producer:
+```bash
 zip sqs-producer.zip sqs_producer.py
 
 aws lambda create-function \
   --function-name [your-username]-sqs-producer \
   --runtime python3.9 \
-  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-sqs-lambda-role \
+  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-messaging-lambda-role \
   --handler sqs_producer.lambda_handler \
   --zip-file fileb://sqs-producer.zip \
-  --environment Variables='{QUEUE_URL="https://sqs.us-east-1.amazonaws.com/[ACCOUNT-ID]/[your-username]-order-processing-queue"}' \
-  --timeout 60
+  --timeout 60 \
+  --description "SQS message producer for order processing"
 ```
 
-4. Deploy SQS processor:
+3. Deploy SQS processor:
 ```bash
 cd ~/environment/[your-username]-sqs-processor
 zip sqs-processor.zip sqs_processor.py
@@ -365,56 +411,51 @@ zip sqs-processor.zip sqs_processor.py
 aws lambda create-function \
   --function-name [your-username]-sqs-processor \
   --runtime python3.9 \
-  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-sqs-lambda-role \
+  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-messaging-lambda-role \
   --handler sqs_processor.lambda_handler \
   --zip-file fileb://sqs-processor.zip \
   --timeout 60 \
-  --reserved-concurrency 5
+  --reserved-concurrency 5 \
+  --description "SQS message processor with retry handling"
 ```
-
-### Step 1.5: Configure SQS Event Source Mapping
-
-1. Create event source mapping:
-```bash
-aws lambda create-event-source-mapping \
-  --function-name [your-username]-sqs-processor \
-  --event-source-arn arn:aws:sqs:us-east-1:[ACCOUNT-ID]:[your-username]-order-processing-queue \
-  --batch-size 5 \
-  --maximum-batching-window-in-seconds 5 \
-  --function-response-types ReportBatchItemFailures
-```
-
-### Step 1.6: Create API Gateway for SQS Producer
-
-1. Create REST API for SQS producer:
-```bash
-aws apigateway create-rest-api \
-  --name "[your-username]-sqs-producer-api" \
-  --description "API for sending messages to SQS"
-```
-
-2. Follow similar steps from previous labs to create resources, methods, and deploy the API (use same pattern as Lab 3).
 
 ---
 
-## Task 2: Implement Kinesis Stream Processing
+## Task 5: Configure SQS Event Source Mapping (Console)
 
-### Step 2.1: Create Kinesis Data Stream
+### Step 5.1: Create Event Source Mapping
 
-1. Create Kinesis stream:
-```bash
-aws kinesis create-stream \
-  --stream-name "[your-username]-analytics-stream" \
-  --shard-count 2
-```
+1. Navigate to **AWS Lambda** in the console
+2. Click on your function: `[your-username]-sqs-processor`
+3. Click the **Configuration** tab
+4. Click **Triggers** in the left panel
+5. Click **Add trigger**
 
-2. Wait for stream to become active:
-```bash
-aws kinesis describe-stream \
-  --stream-name "[your-username]-analytics-stream"
-```
+6. Configure the trigger:
+   - **Source**: SQS
+   - **SQS queue**: Select `[your-username]-order-processing-queue`
+   - **Batch size**: 5
+   - **Maximum batching window**: 5 seconds
+   - **Enabled**: Checked
 
-### Step 2.2: Create Kinesis Data Producer
+7. **Advanced settings**:
+   - **Report batch item failures**: Checked (important for DLQ)
+   - **Maximum concurrency**: 2
+
+8. Click **Add**
+
+### Step 5.2: Verify Event Source Mapping
+
+1. In the Lambda function console, go to the **Configuration** → **Triggers** tab
+2. Verify the SQS trigger is shown as **Enabled**
+3. Click on the trigger to see detailed configuration
+4. Note the **UUID** of the event source mapping for later reference
+
+---
+
+## Task 6: Create Kinesis Stream Components (Cloud9)
+
+### Step 6.1: Create Kinesis Data Producer
 
 1. Create directory for Kinesis producer:
 ```bash
@@ -427,106 +468,130 @@ cd ~/environment/[your-username]-kinesis-producer
 ```python
 import json
 import boto3
-import datetime
 import uuid
-import os
+import datetime
 import random
+from botocore.exceptions import ClientError
 
 # Initialize Kinesis client
 kinesis = boto3.client('kinesis')
 
 def lambda_handler(event, context):
     """
-    Produces streaming data to Kinesis for real-time analytics
+    Kinesis data producer for real-time analytics events
     """
     
-    # Extract request parameters
-    body = json.loads(event.get('body', '{}'))
-    event_count = body.get('eventCount', 10)
-    event_type = body.get('eventType', 'user_activity')
-    
-    stream_name = os.environ['STREAM_NAME']
-    records_sent = []
-    
     try:
-        # Generate multiple events for stream processing
+        # Extract parameters from the request
+        body = json.loads(event.get('body', '{}'))
+        event_type = body.get('eventType', 'user_activity')
+        event_count = body.get('eventCount', 10)
+        
+        stream_name = '[your-username]-analytics-stream'
+        records_sent = []
+        
         for i in range(event_count):
-            # Create different types of analytics events
             if event_type == 'user_activity':
                 event_data = {
-                    'eventId': str(uuid.uuid4()),
                     'eventType': 'user_activity',
-                    'userId': f'user-{random.randint(1000, 9999)}',
-                    'sessionId': f'session-{uuid.uuid4().hex[:8]}',
-                    'action': random.choice(['page_view', 'click', 'search', 'purchase', 'add_to_cart']),
+                    'userId': f"USER-{uuid.uuid4().hex[:8].upper()}",
+                    'sessionId': f"SESS-{uuid.uuid4().hex[:8].upper()}",
+                    'action': random.choice(['page_view', 'click', 'scroll', 'search', 'purchase']),
                     'page': random.choice(['/home', '/products', '/cart', '/checkout', '/profile']),
                     'timestamp': datetime.datetime.now().isoformat(),
+                    'userAgent': 'Mozilla/5.0 (compatible; AnalyticsBot/1.0)',
                     'metadata': {
-                        'userAgent': 'Mozilla/5.0 (compatible analytics)',
-                        'ip': f'192.168.{random.randint(1, 255)}.{random.randint(1, 255)}',
-                        'country': random.choice(['US', 'CA', 'UK', 'DE', 'FR']),
-                        'device': random.choice(['desktop', 'mobile', 'tablet'])
+                        'device': random.choice(['desktop', 'mobile', 'tablet']),
+                        'browser': random.choice(['Chrome', 'Firefox', 'Safari', 'Edge']),
+                        'location': random.choice(['US', 'CA', 'UK', 'DE', 'JP'])
                     }
                 }
+                partition_key = event_data['userId']
+                
             elif event_type == 'transaction':
                 event_data = {
-                    'eventId': str(uuid.uuid4()),
                     'eventType': 'transaction',
-                    'transactionId': f'txn-{uuid.uuid4().hex[:8]}',
-                    'customerId': f'customer-{random.randint(1000, 9999)}',
+                    'transactionId': f"TXN-{uuid.uuid4().hex[:8].upper()}",
+                    'customerId': f"CUST-{uuid.uuid4().hex[:6].upper()}",
                     'amount': round(random.uniform(10.0, 500.0), 2),
                     'currency': 'USD',
+                    'paymentMethod': random.choice(['credit_card', 'debit_card', 'paypal', 'apple_pay']),
                     'status': random.choice(['completed', 'pending', 'failed']),
                     'timestamp': datetime.datetime.now().isoformat(),
-                    'paymentMethod': random.choice(['credit_card', 'paypal', 'bank_transfer'])
+                    'merchantId': f"MERCH-{random.randint(1000, 9999)}",
+                    'metadata': {
+                        'channel': random.choice(['web', 'mobile', 'pos']),
+                        'category': random.choice(['electronics', 'clothing', 'food', 'books']),
+                        'region': random.choice(['north', 'south', 'east', 'west'])
+                    }
                 }
-            else:
+                partition_key = event_data['customerId']
+                
+            elif event_type == 'system_metric':
                 event_data = {
-                    'eventId': str(uuid.uuid4()),
                     'eventType': 'system_metric',
-                    'metricName': random.choice(['cpu_usage', 'memory_usage', 'disk_io', 'network_io']),
+                    'metricName': random.choice(['cpu_usage', 'memory_usage', 'disk_io', 'network_latency']),
                     'value': round(random.uniform(0.1, 100.0), 2),
-                    'unit': random.choice(['percent', 'bytes', 'count']),
-                    'source': f'server-{random.randint(1, 10)}',
-                    'timestamp': datetime.datetime.now().isoformat()
+                    'unit': random.choice(['percent', 'ms', 'bytes', 'count']),
+                    'hostname': f"server-{random.randint(1, 10):02d}",
+                    'timestamp': datetime.datetime.now().isoformat(),
+                    'environment': random.choice(['production', 'staging', 'development']),
+                    'metadata': {
+                        'datacenter': random.choice(['us-east-1', 'us-west-2', 'eu-west-1']),
+                        'instance_type': random.choice(['t3.micro', 't3.small', 'm5.large']),
+                        'availability_zone': random.choice(['a', 'b', 'c'])
+                    }
                 }
+                partition_key = event_data['hostname']
+            
+            else:
+                raise ValueError(f"Unsupported event type: {event_type}")
             
             # Send record to Kinesis
             response = kinesis.put_record(
                 StreamName=stream_name,
                 Data=json.dumps(event_data),
-                PartitionKey=event_data.get('userId', event_data.get('customerId', str(uuid.uuid4())))
+                PartitionKey=partition_key
             )
             
             records_sent.append({
-                'sequenceNumber': response['SequenceNumber'],
+                'eventType': event_type,
+                'partitionKey': partition_key,
                 'shardId': response['ShardId'],
-                'eventData': event_data
+                'sequenceNumber': response['SequenceNumber']
             })
             
-            print(f"Sent record {i + 1}/{event_count} to shard {response['ShardId']}")
+            print(f"Sent {event_type} event to shard {response['ShardId']}")
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
             'body': json.dumps({
-                'message': f'Successfully sent {len(records_sent)} records to Kinesis stream',
-                'recordsSent': len(records_sent),
+                'message': f'Successfully sent {len(records_sent)} records to Kinesis',
                 'streamName': stream_name,
-                'records': records_sent[:5]  # Show first 5 for brevity
-            }, indent=2)
+                'eventType': event_type,
+                'records': records_sent
+            })
         }
         
-    except Exception as e:
-        print(f"Error sending records: {str(e)}")
+    except ClientError as e:
+        print(f"Error sending records to Kinesis: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': f'Failed to send records: {str(e)}'})
+            'body': json.dumps({'error': str(e)})
+        }
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Internal server error'})
         }
 ```
 
-### Step 2.3: Create Kinesis Stream Processor
+### Step 6.2: Create Kinesis Stream Processor
 
 1. Create directory for Kinesis processor:
 ```bash
@@ -539,185 +604,170 @@ cd ~/environment/[your-username]-kinesis-processor
 ```python
 import json
 import base64
-import boto3
-from collections import defaultdict
 import datetime
+from collections import defaultdict
 
 def lambda_handler(event, context):
     """
-    Processes streaming data from Kinesis for real-time analytics
+    Kinesis stream processor for real-time analytics
     """
     
-    print(f"Processing {len(event['Records'])} records from Kinesis stream")
+    print(f"Received Kinesis event with {len(event.get('Records', []))} records")
     
     # Analytics aggregations
-    analytics = {
-        'user_activities': defaultdict(int),
-        'transactions': {
-            'total_amount': 0,
-            'transaction_count': 0,
-            'status_counts': defaultdict(int),
-            'payment_methods': defaultdict(int)
-        },
-        'system_metrics': defaultdict(list),
-        'countries': defaultdict(int),
-        'devices': defaultdict(int)
+    event_counts = defaultdict(int)
+    user_activities = defaultdict(list)
+    transaction_stats = {
+        'total_amount': 0,
+        'completed_count': 0,
+        'failed_count': 0,
+        'pending_count': 0
     }
+    system_metrics = defaultdict(list)
     
-    processed_records = []
+    successfully_processed = 0
+    processing_errors = 0
     
     for record in event['Records']:
         try:
-            # Decode Kinesis record
-            payload = base64.b64decode(record['kinesis']['data']).decode('utf-8')
-            data = json.loads(payload)
+            # Decode the Kinesis record
+            encoded_data = record['kinesis']['data']
+            decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+            event_data = json.loads(decoded_data)
             
-            event_type = data.get('eventType', 'unknown')
+            event_type = event_data.get('eventType', 'unknown')
+            partition_key = record['kinesis']['partitionKey']
+            sequence_number = record['kinesis']['sequenceNumber']
             
-            print(f"Processing {event_type} event: {data.get('eventId', 'unknown')}")
+            print(f"Processing {event_type} event from partition {partition_key}")
             
-            # Process based on event type
+            # Count events by type
+            event_counts[event_type] += 1
+            
+            # Process different event types
             if event_type == 'user_activity':
-                action = data.get('action', 'unknown')
-                analytics['user_activities'][action] += 1
+                user_id = event_data.get('userId')
+                action = event_data.get('action')
+                page = event_data.get('page')
+                device = event_data.get('metadata', {}).get('device')
                 
-                # Track country and device analytics
-                country = data.get('metadata', {}).get('country', 'unknown')
-                device = data.get('metadata', {}).get('device', 'unknown')
-                analytics['countries'][country] += 1
-                analytics['devices'][device] += 1
-                
-                print(f"📊 User activity: {action} from {country} on {device}")
-                
-            elif event_type == 'transaction':
-                amount = data.get('amount', 0)
-                status = data.get('status', 'unknown')
-                payment_method = data.get('paymentMethod', 'unknown')
-                
-                analytics['transactions']['total_amount'] += amount
-                analytics['transactions']['transaction_count'] += 1
-                analytics['transactions']['status_counts'][status] += 1
-                analytics['transactions']['payment_methods'][payment_method] += 1
-                
-                print(f"💳 Transaction: ${amount} via {payment_method} - {status}")
-                
-            elif event_type == 'system_metric':
-                metric_name = data.get('metricName', 'unknown')
-                value = data.get('value', 0)
-                source = data.get('source', 'unknown')
-                
-                analytics['system_metrics'][metric_name].append({
-                    'value': value,
-                    'source': source,
-                    'timestamp': data.get('timestamp')
+                user_activities[user_id].append({
+                    'action': action,
+                    'page': page,
+                    'device': device,
+                    'timestamp': event_data.get('timestamp')
                 })
                 
-                print(f"📈 System metric: {metric_name} = {value} from {source}")
+                print(f"  📱 User {user_id} performed {action} on {page} via {device}")
+                
+            elif event_type == 'transaction':
+                amount = event_data.get('amount', 0)
+                status = event_data.get('status', 'unknown')
+                payment_method = event_data.get('paymentMethod')
+                customer_id = event_data.get('customerId')
+                
+                transaction_stats['total_amount'] += amount
+                if status == 'completed':
+                    transaction_stats['completed_count'] += 1
+                elif status == 'failed':
+                    transaction_stats['failed_count'] += 1
+                elif status == 'pending':
+                    transaction_stats['pending_count'] += 1
+                
+                print(f"  💳 Transaction {event_data.get('transactionId')} for ${amount} - {status}")
+                print(f"     Customer: {customer_id}, Payment: {payment_method}")
+                
+            elif event_type == 'system_metric':
+                metric_name = event_data.get('metricName')
+                value = event_data.get('value')
+                hostname = event_data.get('hostname')
+                environment = event_data.get('environment')
+                
+                system_metrics[metric_name].append({
+                    'value': value,
+                    'hostname': hostname,
+                    'environment': environment,
+                    'timestamp': event_data.get('timestamp')
+                })
+                
+                print(f"  📊 {hostname} ({environment}): {metric_name} = {value}")
+                
+                # Alert on high values (simulated)
+                if metric_name == 'cpu_usage' and value > 80:
+                    print(f"  🚨 HIGH CPU ALERT: {hostname} CPU usage at {value}%")
+                elif metric_name == 'memory_usage' and value > 90:
+                    print(f"  🚨 HIGH MEMORY ALERT: {hostname} memory usage at {value}%")
             
-            processed_records.append({
-                'eventId': data.get('eventId'),
-                'eventType': event_type,
-                'sequenceNumber': record['kinesis']['sequenceNumber'],
-                'partitionKey': record['kinesis']['partitionKey']
-            })
+            successfully_processed += 1
             
         except Exception as e:
-            print(f"❌ Error processing record: {str(e)}")
-            print(f"   Record data: {record}")
-            continue
+            print(f"❌ Error processing record {record.get('kinesis', {}).get('sequenceNumber', 'unknown')}: {str(e)}")
+            processing_errors += 1
+            # Continue processing other records (Kinesis doesn't support partial batch failures)
     
-    # Generate real-time analytics summary
-    print("\n📊 REAL-TIME ANALYTICS SUMMARY:")
-    print("=" * 50)
+    # Generate analytics summary
+    print(f"\n📈 Real-time Analytics Summary:")
+    print(f"  - Records processed: {successfully_processed}")
+    print(f"  - Processing errors: {processing_errors}")
+    print(f"  - Event type distribution: {dict(event_counts)}")
     
-    if analytics['user_activities']:
-        print("🔍 User Activities:")
-        for action, count in analytics['user_activities'].items():
-            print(f"   {action}: {count}")
+    if user_activities:
+        print(f"  - Unique users active: {len(user_activities)}")
+        most_active_user = max(user_activities.keys(), key=lambda k: len(user_activities[k]))
+        print(f"  - Most active user: {most_active_user} ({len(user_activities[most_active_user])} actions)")
     
-    if analytics['transactions']['transaction_count'] > 0:
-        trans = analytics['transactions']
-        avg_amount = trans['total_amount'] / trans['transaction_count']
-        print(f"\n💰 Transactions:")
-        print(f"   Total: {trans['transaction_count']}")
-        print(f"   Total Amount: ${trans['total_amount']:.2f}")
-        print(f"   Average: ${avg_amount:.2f}")
-        print(f"   By Status: {dict(trans['status_counts'])}")
+    if transaction_stats['total_amount'] > 0:
+        print(f"  - Transaction volume: ${transaction_stats['total_amount']:.2f}")
+        print(f"  - Completed: {transaction_stats['completed_count']}, Failed: {transaction_stats['failed_count']}, Pending: {transaction_stats['pending_count']}")
+        
+        if transaction_stats['completed_count'] > 0:
+            avg_transaction = transaction_stats['total_amount'] / (transaction_stats['completed_count'] + transaction_stats['pending_count'])
+            print(f"  - Average transaction: ${avg_transaction:.2f}")
     
-    if analytics['countries']:
-        print(f"\n🌍 Top Countries: {dict(analytics['countries'])}")
-    
-    if analytics['devices']:
-        print(f"📱 Device Types: {dict(analytics['devices'])}")
-    
-    if analytics['system_metrics']:
-        print(f"\n📈 System Metrics Received:")
-        for metric, values in analytics['system_metrics'].items():
-            avg_value = sum(v['value'] for v in values) / len(values)
-            print(f"   {metric}: {len(values)} samples, avg = {avg_value:.2f}")
-    
-    print("=" * 50)
-    print(f"✅ Processed {len(processed_records)} records successfully")
+    if system_metrics:
+        print(f"  - System metrics collected: {len(system_metrics)} types")
+        for metric_name, values in system_metrics.items():
+            if values:
+                avg_value = sum(v['value'] for v in values) / len(values)
+                max_value = max(v['value'] for v in values)
+                print(f"    - {metric_name}: avg={avg_value:.2f}, max={max_value:.2f}")
     
     return {
-        'records': [
-            {
-                'recordId': record['kinesis']['sequenceNumber'],
-                'result': 'Ok'
-            } for record in event['Records']
-        ]
+        'statusCode': 200,
+        'recordsProcessed': successfully_processed,
+        'errors': processing_errors,
+        'analytics': {
+            'eventCounts': dict(event_counts),
+            'userActivities': len(user_activities),
+            'transactionStats': transaction_stats,
+            'systemMetrics': len(system_metrics)
+        }
     }
 ```
 
-### Step 2.4: Deploy Kinesis Components
+### Step 6.3: Deploy Kinesis Lambda Functions
 
-1. Create IAM policy for Kinesis access:
-```bash
-cat > kinesis-policy.json << 'EOF'
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "kinesis:PutRecord",
-                "kinesis:PutRecords",
-                "kinesis:GetRecords",
-                "kinesis:GetShardIterator",
-                "kinesis:DescribeStream",
-                "kinesis:ListStreams"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-EOF
-```
-
-2. Update IAM role with Kinesis permissions:
-```bash
-aws iam put-role-policy \
-  --role-name [your-username]-sqs-lambda-role \
-  --policy-name KinesisAccess \
-  --policy-document file://kinesis-policy.json
-```
-
-3. Deploy Kinesis producer:
+1. Update stream name in producer:
 ```bash
 cd ~/environment/[your-username]-kinesis-producer
+sed -i "s/\[your-username\]/[your-username]/g" kinesis_producer.py
+```
+
+2. Deploy Kinesis producer:
+```bash
 zip kinesis-producer.zip kinesis_producer.py
 
 aws lambda create-function \
   --function-name [your-username]-kinesis-producer \
   --runtime python3.9 \
-  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-sqs-lambda-role \
+  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-messaging-lambda-role \
   --handler kinesis_producer.lambda_handler \
   --zip-file fileb://kinesis-producer.zip \
-  --environment Variables='{STREAM_NAME="[your-username]-analytics-stream"}' \
-  --timeout 60
+  --timeout 60 \
+  --description "Kinesis data producer for analytics events"
 ```
 
-4. Deploy Kinesis processor:
+3. Deploy Kinesis processor:
 ```bash
 cd ~/environment/[your-username]-kinesis-processor
 zip kinesis-processor.zip kinesis_processor.py
@@ -725,29 +775,97 @@ zip kinesis-processor.zip kinesis_processor.py
 aws lambda create-function \
   --function-name [your-username]-kinesis-processor \
   --runtime python3.9 \
-  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-sqs-lambda-role \
+  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-messaging-lambda-role \
   --handler kinesis_processor.lambda_handler \
   --zip-file fileb://kinesis-processor.zip \
-  --timeout 300
-```
-
-### Step 2.5: Configure Kinesis Event Source Mapping
-
-1. Create event source mapping for Kinesis:
-```bash
-aws lambda create-event-source-mapping \
-  --function-name [your-username]-kinesis-processor \
-  --event-source-arn arn:aws:kinesis:us-east-1:[ACCOUNT-ID]:stream/[your-username]-analytics-stream \
-  --starting-position LATEST \
-  --batch-size 10 \
-  --maximum-batching-window-in-seconds 5
+  --timeout 300 \
+  --description "Kinesis stream processor for real-time analytics"
 ```
 
 ---
 
-## Task 3: Test Queue and Stream Processing
+## Task 7: Configure Kinesis Event Source Mapping (Console)
 
-### Step 3.1: Test SQS Processing
+### Step 7.1: Create Kinesis Trigger
+
+1. Navigate to **AWS Lambda** in the console
+2. Click on your function: `[your-username]-kinesis-processor`
+3. Click the **Configuration** tab
+4. Click **Triggers** in the left panel
+5. Click **Add trigger**
+
+6. Configure the trigger:
+   - **Source**: Kinesis
+   - **Kinesis stream**: Select `[your-username]-analytics-stream`
+   - **Starting position**: Latest
+   - **Batch size**: 10
+   - **Maximum batching window**: 5 seconds
+   - **Enabled**: Checked
+
+7. **Advanced settings**:
+   - **Parallelization factor**: 1
+   - **Maximum record age**: 3600 seconds (1 hour)
+   - **Retry attempts**: 3
+   - **Split batch on error**: Disabled
+
+8. Click **Add**
+
+### Step 7.2: Verify Kinesis Configuration
+
+1. In the Lambda function console, go to **Configuration** → **Triggers**
+2. Verify the Kinesis trigger is shown as **Enabled**
+3. Note the **Starting position** is set to **Latest**
+
+---
+
+## Task 8: Create API Gateways for Producers (Console)
+
+### Step 8.1: Create SQS Producer API
+
+1. Navigate to **API Gateway** in the AWS Console
+2. Click **Create API**
+3. Choose **REST API** and click **Build**
+4. Configure:
+   - **API name**: `[your-username]-sqs-api`
+   - **Description**: `API for SQS message production`
+   - **Endpoint Type**: Regional
+5. Click **Create API**
+
+6. Create resource and method:
+   - Click **Actions** → **Create Resource**
+   - **Resource Name**: `messages`
+   - **Resource Path**: `/messages`
+   - **Enable API Gateway CORS**: Checked
+   - Click **Create Resource**
+
+7. Create POST method:
+   - Select `/messages` resource
+   - Click **Actions** → **Create Method**
+   - Select **POST** and click checkmark
+   - **Integration type**: Lambda Function
+   - **Use Lambda Proxy integration**: Checked
+   - **Lambda Function**: `[your-username]-sqs-producer`
+   - Click **Save** and **OK**
+
+8. Deploy API:
+   - Click **Actions** → **Deploy API**
+   - **Stage name**: `prod`
+   - Click **Deploy**
+   - **Copy the Invoke URL**
+
+### Step 8.2: Create Kinesis Producer API
+
+1. Repeat the same process for Kinesis:
+   - **API name**: `[your-username]-kinesis-api`
+   - **Resource**: `/events`
+   - **Lambda Function**: `[your-username]-kinesis-producer`
+   - **Copy the Invoke URL**
+
+---
+
+## Task 9: Test Queue and Stream Processing
+
+### Step 9.1: Test SQS Processing
 
 1. Test successful message processing:
 ```bash
@@ -760,7 +878,7 @@ curl -X POST "https://[your-sqs-api-id].execute-api.us-east-1.amazonaws.com/prod
   }'
 ```
 
-2. Test message failure and DLQ:
+2. Test failure handling and DLQ:
 ```bash
 curl -X POST "https://[your-sqs-api-id].execute-api.us-east-1.amazonaws.com/prod/messages" \
   -H "Content-Type: application/json" \
@@ -771,14 +889,22 @@ curl -X POST "https://[your-sqs-api-id].execute-api.us-east-1.amazonaws.com/prod
   }'
 ```
 
-3. Check DLQ for failed messages:
-```bash
-aws sqs receive-message \
-  --queue-url "https://sqs.us-east-1.amazonaws.com/[ACCOUNT-ID]/[your-username]-order-dlq" \
-  --max-number-of-messages 10
-```
+### Step 9.2: Monitor SQS Processing (Console)
 
-### Step 3.2: Test Kinesis Stream Processing
+1. Navigate to **SQS** console
+2. Click on your main queue: `[your-username]-order-processing-queue`
+3. Click **Send and receive messages**
+4. Click **Poll for messages** to see any messages in flight
+5. Click the **Monitoring** tab to see:
+   - **Messages Sent**
+   - **Messages Received**
+   - **Messages Deleted**
+
+6. Check your DLQ: `[your-username]-order-dlq`
+7. Click **Send and receive messages**
+8. Click **Poll for messages** to see failed messages
+
+### Step 9.3: Test Kinesis Stream Processing
 
 1. Test user activity stream:
 ```bash
@@ -800,7 +926,7 @@ curl -X POST "https://[your-kinesis-api-id].execute-api.us-east-1.amazonaws.com/
   }'
 ```
 
-3. Test system metrics stream:
+3. Test system metrics:
 ```bash
 curl -X POST "https://[your-kinesis-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
   -H "Content-Type: application/json" \
@@ -810,96 +936,117 @@ curl -X POST "https://[your-kinesis-api-id].execute-api.us-east-1.amazonaws.com/
   }'
 ```
 
-### Step 3.3: Monitor Processing Metrics
+### Step 9.4: Monitor Kinesis Processing (Console)
 
-1. Check SQS metrics:
-```bash
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/SQS \
-  --metric-name NumberOfMessagesSent \
-  --dimensions Name=QueueName,Value=[your-username]-order-processing-queue \
-  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
-  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
-  --period 300 \
-  --statistics Sum
-```
+1. Navigate to **Kinesis** console
+2. Click on your stream: `[your-username]-analytics-stream`
+3. Click the **Monitoring** tab to see:
+   - **Incoming records**
+   - **Outgoing records**
+   - **Iterator age**
 
-2. Check Kinesis metrics:
-```bash
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/Kinesis \
-  --metric-name IncomingRecords \
-  --dimensions Name=StreamName,Value=[your-username]-analytics-stream \
-  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
-  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
-  --period 300 \
-  --statistics Sum
-```
-
-3. Check Lambda function logs:
-```bash
-aws logs describe-log-groups --log-group-name-prefix /aws/lambda/[your-username]
-```
+4. Click the **Shards** tab
+5. Click on **Shard-level metrics** to see per-shard statistics
 
 ---
 
-## Task 4: Compare Queue vs Stream Processing
+## Task 10: Create CloudWatch Dashboard (Console)
 
-### Step 4.1: Performance Comparison
+### Step 10.1: Create Messaging Dashboard
 
-1. Send high-volume messages to both systems and compare:
+1. Navigate to **CloudWatch** in the AWS Console
+2. Click **Dashboards**
+3. Click **Create dashboard**
+4. **Dashboard name**: `[your-username]-messaging-dashboard`
+5. Click **Create dashboard**
+
+### Step 10.2: Add SQS Metrics Widget
+
+1. Click **Add widget**
+2. Select **Line** and click **Configure**
+3. **Metrics** tab:
+   - **Browse**: AWS/SQS
+   - **QueueName**: Select your queues
+   - **Metrics**: NumberOfMessagesSent, NumberOfMessagesReceived, ApproximateNumberOfVisibleMessages
+
+4. **Graphed metrics** tab:
+   - **Period**: 1 minute
+   - **Statistic**: Sum for sent/received, Average for visible
+5. **Widget title**: SQS Queue Metrics
+6. Click **Create widget**
+
+### Step 10.3: Add Kinesis Metrics Widget
+
+1. Click **Add widget**
+2. Select **Line** and click **Configure**
+3. **Metrics** tab:
+   - **Browse**: AWS/Kinesis
+   - **StreamName**: Select your stream
+   - **Metrics**: IncomingRecords, OutgoingRecords
+
+4. **Graphed metrics** tab:
+   - **Period**: 1 minute
+   - **Statistic**: Sum
+5. **Widget title**: Kinesis Stream Metrics
+6. Click **Create widget**
+
+### Step 10.4: Add Lambda Metrics Widget
+
+1. Click **Add widget**
+2. Select **Number** and click **Configure**
+3. **Metrics** tab:
+   - **Browse**: AWS/Lambda
+   - **FunctionName**: Select all your functions
+   - **Metrics**: Invocations, Errors, Duration
+
+4. **Widget title**: Lambda Function Metrics
+5. Click **Create widget**
+
+6. Click **Save dashboard**
+
+---
+
+## Task 11: Compare Processing Patterns (Console Analysis)
+
+### Step 11.1: Analyze Processing Differences
+
+1. Navigate to **CloudWatch** → **Log groups**
+2. Compare processing patterns by examining logs:
+   - **SQS processor**: Batch processing, retry behavior
+   - **Kinesis processor**: Stream processing, real-time analytics
+
+### Step 11.2: Performance Comparison
+
+1. Send high-volume messages to both systems:
 ```bash
-# Send 50 messages to SQS
+# 50 SQS messages
 curl -X POST "https://[your-sqs-api-id].execute-api.us-east-1.amazonaws.com/prod/messages" \
   -H "Content-Type: application/json" \
   -d '{"messageType": "OrderProcessing", "batchSize": 50}'
 
-# Send 50 records to Kinesis
+# 50 Kinesis records
 curl -X POST "https://[your-kinesis-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
   -H "Content-Type: application/json" \
   -d '{"eventType": "user_activity", "eventCount": 50}'
 ```
 
-2. Observe processing patterns in CloudWatch logs.
+2. Monitor in your CloudWatch dashboard:
+   - **SQS**: Batch processing with retries
+   - **Kinesis**: Real-time processing with analytics
 
-### Step 4.2: Error Handling Comparison
+### Step 11.3: Error Handling Analysis
 
-1. Test SQS retry behavior:
+1. Test SQS error handling:
 ```bash
 curl -X POST "https://[your-sqs-api-id].execute-api.us-east-1.amazonaws.com/prod/messages" \
   -H "Content-Type: application/json" \
   -d '{"messageType": "OrderProcessing", "batchSize": 5, "simulateFailure": true}'
 ```
 
-2. Monitor retry attempts and DLQ behavior.
-
----
-
-## Lab Verification
-
-### Verification Checklist
-
-Verify that you have successfully completed the following:
-
-- [ ] Created SQS queues with dead letter queue configuration
-- [ ] Deployed SQS producer and processor Lambda functions
-- [ ] Configured SQS event source mapping with batch item failures
-- [ ] Created Kinesis Data Stream with multiple shards
-- [ ] Deployed Kinesis producer and processor Lambda functions
-- [ ] Configured Kinesis event source mapping for real-time processing
-- [ ] Successfully tested both queue and stream processing patterns
-- [ ] Observed retry mechanisms and error handling differences
-- [ ] Monitored processing metrics in CloudWatch
-
-### Expected Results
-
-Your queue and stream processing systems should:
-1. Process SQS messages reliably with retry and DLQ handling
-2. Process Kinesis streams in real-time with aggregated analytics
-3. Handle failures differently (retry vs. continue processing)
-4. Show different processing patterns (batch vs. streaming)
-5. Demonstrate ordering guarantees (SQS FIFO vs. Kinesis partition-based)
-6. Provide monitoring and observability through CloudWatch
+2. In SQS console, monitor:
+   - Main queue message flow
+   - DLQ accumulation after retries
+   - Message visibility and retry behavior
 
 ---
 
@@ -908,31 +1055,38 @@ Your queue and stream processing systems should:
 ### Common Issues and Solutions
 
 **Issue:** SQS messages not being processed
-- **Solution:** Check event source mapping configuration
-- Verify Lambda function permissions for SQS
-- Check visibility timeout settings
+- **Console Check**: Verify event source mapping in Lambda triggers
+- **Console Check**: Check SQS queue visibility timeout vs Lambda timeout
+- **Solution**: Increase Lambda timeout or reduce SQS visibility timeout
+
+**Issue:** Messages ending up in DLQ immediately
+- **Console Check**: Verify DLQ configuration in SQS queue settings
+- **Console Check**: Check Lambda function error logs in CloudWatch
+- **Solution**: Fix Lambda function code or increase retry count
 
 **Issue:** Kinesis records not being processed
-- **Solution:** Verify stream is active and has data
-- Check shard-level metrics for throughput
-- Ensure event source mapping is correctly configured
+- **Console Check**: Verify stream is ACTIVE in Kinesis console
+- **Console Check**: Check event source mapping configuration
+- **Solution**: Ensure proper IAM permissions and starting position
 
-**Issue:** DLQ not receiving failed messages
-- **Solution:** Verify redrive policy configuration
-- Check maxReceiveCount setting
-- Ensure DLQ exists and is accessible
-
-**Issue:** Lambda timeouts during processing
-- **Solution:** Increase Lambda timeout settings
-- Reduce batch size for processing
-- Optimize processing logic for efficiency
+**Issue:** High Lambda errors
+- **Console Monitor**: Use CloudWatch dashboard to identify patterns
+- **Console Debug**: Check detailed error logs in each function's log group
+- **Solution**: Add error handling and increase timeout values
 
 ---
 
 ## Clean Up (Optional)
 
-To clean up resources after the lab:
+### Via Console:
+1. **Lambda**: Delete all 4 functions
+2. **SQS**: Delete both queues (main queue and DLQ)
+3. **Kinesis**: Delete the data stream
+4. **API Gateway**: Delete both REST APIs
+5. **CloudWatch**: Delete the dashboard
+6. **IAM**: Delete the role and policies
 
+### Via CLI:
 ```bash
 # Delete Lambda functions
 aws lambda delete-function --function-name [your-username]-sqs-producer
@@ -946,12 +1100,6 @@ aws sqs delete-queue --queue-url "https://sqs.us-east-1.amazonaws.com/[ACCOUNT-I
 
 # Delete Kinesis stream
 aws kinesis delete-stream --stream-name [your-username]-analytics-stream
-
-# Delete IAM role and policies
-aws iam delete-role-policy --role-name [your-username]-sqs-lambda-role --policy-name SQSAccess
-aws iam delete-role-policy --role-name [your-username]-sqs-lambda-role --policy-name KinesisAccess
-aws iam detach-role-policy --role-name [your-username]-sqs-lambda-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-aws iam delete-role --role-name [your-username]-sqs-lambda-role
 ```
 
 ---
@@ -959,12 +1107,26 @@ aws iam delete-role --role-name [your-username]-sqs-lambda-role
 ## Key Takeaways
 
 From this lab, you should understand:
-1. **Queue vs Stream Processing:** Different use cases and processing patterns
-2. **Reliability Patterns:** Retry mechanisms, dead letter queues, and error handling
-3. **Scalability Considerations:** Batch processing vs. real-time streaming
-4. **Ordering Guarantees:** How SQS and Kinesis handle message ordering
-5. **Event Source Mappings:** Configuration and tuning for different workloads
-6. **Monitoring and Observability:** CloudWatch metrics for queue and stream processing
+
+1. **Queue vs Stream Processing**: Different use cases and processing patterns
+2. **Reliability Patterns**: Retry mechanisms, dead letter queues, and error handling
+3. **Scalability Considerations**: Batch processing vs. real-time streaming
+4. **Ordering Guarantees**: How SQS and Kinesis handle message ordering
+5. **Event Source Mappings**: Configuration and tuning for different workloads
+6. **Monitoring and Observability**: CloudWatch metrics for queue and stream processing
+7. **Console vs CLI**: When to use visual tools for configuration and monitoring
+8. **Production Patterns**: Error handling, retry logic, and monitoring strategies
+
+### Processing Pattern Summary
+
+| Aspect | SQS | Kinesis |
+|--------|-----|---------|
+| **Use Case** | Reliable message processing | Real-time data streaming |
+| **Ordering** | FIFO optional | Partition-based ordering |
+| **Retention** | Up to 14 days | Up to 365 days |
+| **Error Handling** | Retry + DLQ | Continue processing |
+| **Scaling** | Automatic | Manual shard management |
+| **Processing** | Batch with retries | Real-time analytics |
 
 ---
 

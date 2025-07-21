@@ -1,4 +1,4 @@
-# Developing Serverless Solutions on AWS - Day 1 - Lab 3
+# Developing Serverless Solutions on AWS - Lab 3
 ## Message Fan-Out with Amazon EventBridge
 
 **Lab Duration:** 90 minutes
@@ -46,21 +46,28 @@ Continue using your AWS Cloud9 environment from previous labs.
 
 ## Task 1: Create Custom Event Bus and Producer
 
-### Step 1.1: Create Custom Event Bus
+### Step 1.1: Create Custom Event Bus (Console)
 
-1. In your Cloud9 terminal, create a custom event bus:
-```bash
-aws events create-event-bus \
-  --name "[your-username]-ecommerce-events"
-```
+1. Navigate to **Amazon EventBridge** in the AWS Console
+2. Click **Event buses** in the left navigation
+3. Click **Create event bus**
+4. Configure the event bus:
+   - **Name**: `[your-username]-ecommerce-events`
+   - **Description**: `Event bus for ecommerce application events`
+   - **Event source name**: Leave blank (custom events)
+   - **KMS encryption**: Disabled for this lab
+5. Click **Create**
+6. **Note the Event bus ARN** from the details page for later use
 
-2. Verify the event bus was created:
+### Step 1.2: Verify Event Bus Creation (CLI)
+
+1. In your Cloud9 terminal, verify the event bus was created:
 ```bash
 aws events list-event-buses \
   --query 'EventBuses[?contains(Name, `[your-username]`)].{Name:Name, Arn:Arn}'
 ```
 
-### Step 1.2: Create Event Producer Lambda Function
+### Step 1.3: Create Event Producer Lambda Function (Cloud9)
 
 1. Create a new directory for the event producer:
 ```bash
@@ -74,98 +81,108 @@ cd ~/environment/[your-username]-event-producer
 import json
 import boto3
 import datetime
-import uuid
-import os
+from botocore.exceptions import ClientError
 
 # Initialize EventBridge client
 eventbridge = boto3.client('events')
 
 def lambda_handler(event, context):
     """
-    Event producer that publishes ecommerce events
+    Event producer that publishes ecommerce events to custom EventBridge bus
     """
     
-    # Extract request parameters
-    body = json.loads(event.get('body', '{}'))
-    event_type = body.get('eventType', 'OrderPlaced')
-    customer_id = body.get('customerId', f'customer-{uuid.uuid4().hex[:8]}')
-    
-    # Create event payload based on type
-    if event_type == 'OrderPlaced':
-        event_detail = {
-            'orderId': f'order-{uuid.uuid4().hex[:8]}',
-            'customerId': customer_id,
-            'amount': body.get('amount', 99.99),
-            'items': body.get('items', [
-                {'productId': 'prod-123', 'quantity': 2, 'price': 49.99}
-            ]),
-            'timestamp': datetime.datetime.now().isoformat()
-        }
-    elif event_type == 'PaymentProcessed':
-        event_detail = {
-            'paymentId': f'payment-{uuid.uuid4().hex[:8]}',
-            'orderId': body.get('orderId', f'order-{uuid.uuid4().hex[:8]}'),
-            'amount': body.get('amount', 99.99),
-            'status': 'SUCCESS',
-            'timestamp': datetime.datetime.now().isoformat()
-        }
-    elif event_type == 'InventoryUpdated':
-        event_detail = {
-            'productId': body.get('productId', 'prod-123'),
-            'quantityChange': body.get('quantityChange', -2),
-            'newQuantity': body.get('newQuantity', 98),
-            'timestamp': datetime.datetime.now().isoformat()
-        }
-    else:
-        return {
-            'statusCode': 400,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': f'Unknown event type: {event_type}'})
-        }
-    
-    # Publish event to EventBridge
     try:
+        # Extract event type from the incoming request
+        body = json.loads(event.get('body', '{}'))
+        event_type = body.get('eventType', 'OrderPlaced')
+        
+        # Generate sample event data based on type
+        if event_type == 'OrderPlaced':
+            event_detail = {
+                'orderId': f"ORD-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                'customerId': body.get('customerId', 'CUST-001'),
+                'amount': body.get('amount', 99.99),
+                'items': body.get('items', [{'productId': 'PROD-001', 'quantity': 1}]),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            detail_type = 'Order Placed'
+            source = 'ecommerce.orders'
+            
+        elif event_type == 'InventoryUpdate':
+            event_detail = {
+                'productId': body.get('productId', 'PROD-001'),
+                'previousStock': body.get('previousStock', 100),
+                'currentStock': body.get('currentStock', 95),
+                'threshold': body.get('threshold', 10),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            detail_type = 'Inventory Updated'
+            source = 'ecommerce.inventory'
+            
+        else:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': f'Unsupported event type: {event_type}'})
+            }
+        
+        # Publish event to custom EventBridge bus
         response = eventbridge.put_events(
             Entries=[
                 {
-                    'Source': 'ecommerce.application',
-                    'DetailType': event_type,
+                    'Source': source,
+                    'DetailType': detail_type,
                     'Detail': json.dumps(event_detail),
-                    'EventBusName': os.environ['EVENT_BUS_NAME']
+                    'EventBusName': '[your-username]-ecommerce-events'
                 }
             ]
         )
         
-        print(f"Published event: {event_type}")
-        print(f"Event detail: {json.dumps(event_detail, indent=2)}")
+        print(f"Published event: {json.dumps(event_detail, indent=2)}")
+        print(f"EventBridge response: {json.dumps(response, indent=2)}")
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
             'body': json.dumps({
-                'message': f'Event {event_type} published successfully',
+                'message': 'Event published successfully',
+                'eventType': event_type,
                 'eventId': response['Entries'][0].get('EventId'),
-                'eventDetail': event_detail
-            }, indent=2)
+                'detail': event_detail
+            })
         }
         
-    except Exception as e:
-        print(f"Error publishing event: {str(e)}")
+    except ClientError as e:
+        print(f"Error publishing event: {e}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': f'Failed to publish event: {str(e)}'})
+            'body': json.dumps({'error': str(e)})
+        }
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Internal server error'})
         }
 ```
 
-### Step 1.3: Deploy Event Producer
-
-1. Create IAM policy for EventBridge access:
+3. Create IAM role for the event producer:
 ```bash
-cat > event-policy.json << 'EOF'
+cat > event-producer-policy.json << 'EOF'
 {
     "Version": "2012-10-17",
     "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:*:*:*"
+        },
         {
             "Effect": "Allow",
             "Action": [
@@ -176,10 +193,7 @@ cat > event-policy.json << 'EOF'
     ]
 }
 EOF
-```
 
-2. Create IAM role for the producer:
-```bash
 aws iam create-role \
   --role-name [your-username]-event-producer-role \
   --assume-role-policy-document '{
@@ -194,22 +208,18 @@ aws iam create-role \
       }
     ]
   }'
-```
-
-3. Attach policies to the role:
-```bash
-aws iam attach-role-policy \
-  --role-name [your-username]-event-producer-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
 aws iam put-role-policy \
   --role-name [your-username]-event-producer-role \
-  --policy-name EventBridgeAccess \
-  --policy-document file://event-policy.json
+  --policy-name EventProducerPolicy \
+  --policy-document file://event-producer-policy.json
 ```
 
-4. Package and deploy the function:
+4. Deploy the event producer function:
 ```bash
+# Replace [your-username] in the Python file
+sed -i "s/\[your-username\]/[your-username]/g" event_producer.py
+
 zip event-producer.zip event_producer.py
 
 aws lambda create-function \
@@ -218,76 +228,51 @@ aws lambda create-function \
   --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-event-producer-role \
   --handler event_producer.lambda_handler \
   --zip-file fileb://event-producer.zip \
-  --environment Variables='{EVENT_BUS_NAME="[your-username]-ecommerce-events"}' \
-  --timeout 30
+  --timeout 30 \
+  --description "EventBridge event producer for ecommerce events"
 ```
 
-### Step 1.4: Create API Gateway for Event Producer
+### Step 1.4: Create API Gateway for Event Producer (Console)
 
-1. Create REST API:
-```bash
-aws apigateway create-rest-api \
-  --name "[your-username]-event-producer-api" \
-  --description "API for publishing events"
-```
+1. Navigate to **API Gateway** in the AWS Console
+2. Click **Create API**
+3. Choose **REST API** and click **Build**
+4. Configure the API:
+   - **API name**: `[your-username]-event-api`
+   - **Description**: `API for publishing events to EventBridge`
+   - **Endpoint Type**: Regional
+5. Click **Create API**
 
-2. Get the API ID and root resource ID:
-```bash
-# Note the api-id from the previous command
-aws apigateway get-resources \
-  --rest-api-id [your-api-id]
-```
+6. Create a resource:
+   - Click **Actions** → **Create Resource**
+   - **Resource Name**: `events`
+   - **Resource Path**: `/events`
+   - **Enable API Gateway CORS**: Checked
+   - Click **Create Resource**
 
-3. Create a resource for events:
-```bash
-aws apigateway create-resource \
-  --rest-api-id [your-api-id] \
-  --parent-id [root-resource-id] \
-  --path-part events
-```
+7. Create a POST method:
+   - Select the `/events` resource
+   - Click **Actions** → **Create Method**
+   - Select **POST** and click the checkmark
+   - **Integration type**: Lambda Function
+   - **Use Lambda Proxy integration**: Checked
+   - **Lambda Region**: us-east-1
+   - **Lambda Function**: `[your-username]-event-producer`
+   - Click **Save**
+   - Click **OK** to grant permission
 
-4. Create POST method:
-```bash
-aws apigateway put-method \
-  --rest-api-id [your-api-id] \
-  --resource-id [events-resource-id] \
-  --http-method POST \
-  --authorization-type NONE
-```
-
-5. Integrate with Lambda:
-```bash
-aws apigateway put-integration \
-  --rest-api-id [your-api-id] \
-  --resource-id [events-resource-id] \
-  --http-method POST \
-  --type AWS_PROXY \
-  --integration-http-method POST \
-  --uri arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-event-producer/invocations
-```
-
-6. Grant API Gateway permission to invoke Lambda:
-```bash
-aws lambda add-permission \
-  --function-name [your-username]-event-producer \
-  --statement-id apigateway-invoke-producer \
-  --action lambda:InvokeFunction \
-  --principal apigateway.amazonaws.com \
-  --source-arn "arn:aws:execute-api:us-east-1:[ACCOUNT-ID]:[your-api-id]/*/*"
-```
-
-7. Deploy the API:
-```bash
-aws apigateway create-deployment \
-  --rest-api-id [your-api-id] \
-  --stage-name prod
-```
+8. Deploy the API:
+   - Click **Actions** → **Deploy API**
+   - **Deployment stage**: New Stage
+   - **Stage name**: `prod`
+   - Click **Deploy**
+   - **Note the Invoke URL** for testing
 
 ---
 
 ## Task 2: Create Event Consumer Lambda Functions
 
-### Step 2.1: Create Order Processor
+### Step 2.1: Create Order Processor (Cloud9)
 
 1. Create directory for order processor:
 ```bash
@@ -355,7 +340,7 @@ aws lambda create-function \
   --timeout 30
 ```
 
-### Step 2.2: Create Inventory Updater
+### Step 2.2: Create Inventory Updater (Cloud9)
 
 1. Create directory for inventory updater:
 ```bash
@@ -371,51 +356,53 @@ import boto3
 
 def lambda_handler(event, context):
     """
-    Updates inventory based on OrderPlaced and InventoryUpdated events
+    Processes InventoryUpdate events and OrderPlaced events
     """
     
     print(f"Received event: {json.dumps(event, indent=2)}")
     
-    # Process each record
-    for record in event.get('Records', [event]):
-        # Extract event details
-        if 'detail' in record:
-            event_detail = record['detail']
-            detail_type = record.get('detail-type', 'unknown')
-        else:
-            event_detail = event.get('detail', {})
-            detail_type = event.get('detail-type', 'unknown')
+    # Process the event
+    event_detail = event.get('detail', {})
+    event_source = event.get('source', 'unknown')
+    detail_type = event.get('detail-type', 'unknown')
+    
+    print(f"Processing {detail_type} from {event_source}")
+    
+    if detail_type == 'Order Placed':
+        # Process order for inventory updates
+        order_id = event_detail.get('orderId', 'unknown')
+        items = event_detail.get('items', [])
         
-        print(f"Processing {detail_type} for inventory update")
+        print(f"📦 Processing inventory updates for order {order_id}")
         
-        if detail_type == 'OrderPlaced':
-            # Process order items for inventory reduction
-            items = event_detail.get('items', [])
-            order_id = event_detail.get('orderId', 'unknown')
+        for item in items:
+            product_id = item.get('productId', 'unknown')
+            quantity = item.get('quantity', 0)
             
-            for item in items:
-                product_id = item.get('productId', 'unknown')
-                quantity = item.get('quantity', 0)
-                
-                print(f"📦 Reducing inventory for product {product_id} by {quantity} units")
-                print(f"📦 Updated inventory tracking for order {order_id}")
+            print(f"  - Reducing inventory for {product_id} by {quantity} units")
+            print(f"  - Checking reorder thresholds for {product_id}")
         
-        elif detail_type == 'InventoryUpdated':
-            # Process direct inventory updates
-            product_id = event_detail.get('productId', 'unknown')
-            quantity_change = event_detail.get('quantityChange', 0)
-            new_quantity = event_detail.get('newQuantity', 0)
-            
-            print(f"📦 Direct inventory update for product {product_id}")
-            print(f"📦 Quantity change: {quantity_change}, New quantity: {new_quantity}")
-            
-            # Check for low stock alerts
-            if new_quantity < 10:
-                print(f"⚠️ LOW STOCK ALERT: Product {product_id} has only {new_quantity} units remaining")
+        print(f"✅ Inventory updates completed for order {order_id}")
+        
+    elif detail_type == 'Inventory Updated':
+        # Process inventory level changes
+        product_id = event_detail.get('productId', 'unknown')
+        current_stock = event_detail.get('currentStock', 0)
+        threshold = event_detail.get('threshold', 10)
+        
+        print(f"📊 Processing inventory update for product {product_id}")
+        print(f"  - Current stock: {current_stock}")
+        print(f"  - Reorder threshold: {threshold}")
+        
+        if current_stock <= threshold:
+            print(f"⚠️  LOW STOCK ALERT: Product {product_id} needs reordering!")
+            print(f"  - Triggering purchase order for {product_id}")
+        
+        print(f"✅ Inventory monitoring completed for {product_id}")
     
     return {
         'statusCode': 200,
-        'body': json.dumps('Inventory update completed successfully')
+        'body': json.dumps('Inventory processing completed successfully')
     }
 ```
 
@@ -432,15 +419,15 @@ aws lambda create-function \
   --timeout 30
 ```
 
-### Step 2.3: Create Payment Processor
+### Step 2.3: Create Notification Service (Cloud9)
 
-1. Create directory for payment processor:
+1. Create directory for notification service:
 ```bash
-mkdir ~/environment/[your-username]-payment-processor
-cd ~/environment/[your-username]-payment-processor
+mkdir ~/environment/[your-username]-notification-service
+cd ~/environment/[your-username]-notification-service
 ```
 
-2. Create `payment_processor.py`:
+2. Create `notification_service.py`:
 
 ```python
 import json
@@ -448,391 +435,373 @@ import boto3
 
 def lambda_handler(event, context):
     """
-    Processes PaymentProcessed events
+    Processes all events and sends notifications
     """
     
     print(f"Received event: {json.dumps(event, indent=2)}")
     
-    # Process each record
-    for record in event.get('Records', [event]):
-        # Extract event details
-        if 'detail' in record:
-            event_detail = record['detail']
-            detail_type = record.get('detail-type', 'unknown')
-        else:
-            event_detail = event.get('detail', {})
-            detail_type = event.get('detail-type', 'unknown')
-        
-        print(f"Processing {detail_type}")
-        
-        payment_id = event_detail.get('paymentId', 'unknown')
-        order_id = event_detail.get('orderId', 'unknown')
-        amount = event_detail.get('amount', 0)
-        status = event_detail.get('status', 'unknown')
-        
-        print(f"💳 Processing payment {payment_id} for order {order_id}")
-        print(f"💳 Payment amount: ${amount}")
-        print(f"💳 Payment status: {status}")
-        
-        if status == 'SUCCESS':
-            print(f"✅ Payment {payment_id} processed successfully")
-            print(f"✅ Order {order_id} can proceed to fulfillment")
-        else:
-            print(f"❌ Payment {payment_id} failed - order {order_id} requires attention")
-    
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Payment processing completed successfully')
-    }
-```
-
-3. Deploy payment processor:
-```bash
-zip payment-processor.zip payment_processor.py
-
-aws lambda create-function \
-  --function-name [your-username]-payment-processor \
-  --runtime python3.9 \
-  --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-event-producer-role \
-  --handler payment_processor.lambda_handler \
-  --zip-file fileb://payment-processor.zip \
-  --timeout 30
-```
-
----
-
-## Task 3: Create EventBridge Rules and Targets
-
-### Step 3.1: Create Rule for Order Processing
-
-1. Create event pattern for OrderPlaced events:
-```bash
-cat > order-pattern.json << 'EOF'
-{
-  "source": ["ecommerce.application"],
-  "detail-type": ["OrderPlaced"]
-}
-EOF
-```
-
-2. Create the rule:
-```bash
-aws events put-rule \
-  --name "[your-username]-order-processing-rule" \
-  --event-pattern file://order-pattern.json \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --description "Routes OrderPlaced events to order processor"
-```
-
-3. Add Lambda target to the rule:
-```bash
-aws events put-targets \
-  --rule "[your-username]-order-processing-rule" \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --targets Id=1,Arn=arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-order-processor
-```
-
-4. Grant EventBridge permission to invoke the Lambda:
-```bash
-aws lambda add-permission \
-  --function-name [your-username]-order-processor \
-  --statement-id eventbridge-invoke-order \
-  --action lambda:InvokeFunction \
-  --principal events.amazonaws.com \
-  --source-arn arn:aws:events:us-east-1:[ACCOUNT-ID]:rule/[your-username]-ecommerce-events/[your-username]-order-processing-rule
-```
-
-### Step 3.2: Create Rule for Inventory Updates
-
-1. Create event pattern for inventory-related events:
-```bash
-cat > inventory-pattern.json << 'EOF'
-{
-  "source": ["ecommerce.application"],
-  "detail-type": ["OrderPlaced", "InventoryUpdated"]
-}
-EOF
-```
-
-2. Create the rule:
-```bash
-aws events put-rule \
-  --name "[your-username]-inventory-update-rule" \
-  --event-pattern file://inventory-pattern.json \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --description "Routes order and inventory events to inventory updater"
-```
-
-3. Add Lambda target:
-```bash
-aws events put-targets \
-  --rule "[your-username]-inventory-update-rule" \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --targets Id=1,Arn=arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-inventory-updater
-```
-
-4. Grant permission:
-```bash
-aws lambda add-permission \
-  --function-name [your-username]-inventory-updater \
-  --statement-id eventbridge-invoke-inventory \
-  --action lambda:InvokeFunction \
-  --principal events.amazonaws.com \
-  --source-arn arn:aws:events:us-east-1:[ACCOUNT-ID]:rule/[your-username]-ecommerce-events/[your-username]-inventory-update-rule
-```
-
-### Step 3.3: Create Rule for Payment Processing
-
-1. Create event pattern for payment events:
-```bash
-cat > payment-pattern.json << 'EOF'
-{
-  "source": ["ecommerce.application"],
-  "detail-type": ["PaymentProcessed"]
-}
-EOF
-```
-
-2. Create the rule:
-```bash
-aws events put-rule \
-  --name "[your-username]-payment-processing-rule" \
-  --event-pattern file://payment-pattern.json \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --description "Routes PaymentProcessed events to payment processor"
-```
-
-3. Add Lambda target:
-```bash
-aws events put-targets \
-  --rule "[your-username]-payment-processing-rule" \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --targets Id=1,Arn=arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-payment-processor
-```
-
-4. Grant permission:
-```bash
-aws lambda add-permission \
-  --function-name [your-username]-payment-processor \
-  --statement-id eventbridge-invoke-payment \
-  --action lambda:InvokeFunction \
-  --principal events.amazonaws.com \
-  --source-arn arn:aws:events:us-east-1:[ACCOUNT-ID]:rule/[your-username]-ecommerce-events/[your-username]-payment-processing-rule
-```
-
----
-
-## Task 4: Test the Event-Driven Architecture
-
-### Step 4.1: Test Order Placement
-
-1. Get your event producer API endpoint:
-```bash
-echo "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events"
-```
-
-2. Test OrderPlaced event:
-```bash
-curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "OrderPlaced",
-    "customerId": "customer-12345",
-    "amount": 149.99,
-    "items": [
-      {"productId": "laptop-001", "quantity": 1, "price": 149.99}
-    ]
-  }'
-```
-
-3. Check CloudWatch logs for both order processor and inventory updater functions to see the event processing.
-
-### Step 4.2: Test Payment Processing
-
-1. Test PaymentProcessed event:
-```bash
-curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "PaymentProcessed",
-    "orderId": "order-67890",
-    "amount": 149.99
-  }'
-```
-
-### Step 4.3: Test Inventory Update
-
-1. Test InventoryUpdated event:
-```bash
-curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "InventoryUpdated",
-    "productId": "laptop-001",
-    "quantityChange": -5,
-    "newQuantity": 8
-  }'
-```
-
-### Step 4.4: Monitor Event Flow
-
-1. Check EventBridge metrics in CloudWatch:
-```bash
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/Events \
-  --metric-name SuccessfulInvocations \
-  --dimensions Name=EventBusName,Value=[your-username]-ecommerce-events \
-  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
-  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
-  --period 300 \
-  --statistics Sum
-```
-
-2. View Lambda function logs:
-```bash
-# Check logs for each function
-aws logs describe-log-groups --log-group-name-prefix /aws/lambda/[your-username]
-```
-
----
-
-## Task 5: Advanced Event Filtering
-
-### Step 5.1: Create Filtered Rule for High-Value Orders
-
-1. Create pattern for high-value orders:
-```bash
-cat > high-value-pattern.json << 'EOF'
-{
-  "source": ["ecommerce.application"],
-  "detail-type": ["OrderPlaced"],
-  "detail": {
-    "amount": [{"numeric": [">=", 100]}]
-  }
-}
-EOF
-```
-
-2. Create high-value order processor:
-```bash
-mkdir ~/environment/[your-username]-high-value-processor
-cd ~/environment/[your-username]-high-value-processor
-
-cat > high_value_processor.py << 'EOF'
-import json
-
-def lambda_handler(event, context):
-    """
-    Special processing for high-value orders
-    """
-    
-    print(f"🔥 HIGH VALUE ORDER DETECTED: {json.dumps(event, indent=2)}")
-    
+    # Process the event
     event_detail = event.get('detail', {})
-    order_id = event_detail.get('orderId', 'unknown')
-    amount = event_detail.get('amount', 0)
-    customer_id = event_detail.get('customerId', 'unknown')
+    event_source = event.get('source', 'unknown')
+    detail_type = event.get('detail-type', 'unknown')
     
-    print(f"💰 High-value order {order_id} for ${amount}")
-    print(f"👤 Customer: {customer_id}")
-    print(f"🚨 Flagging for manual review and premium processing")
-    print(f"📧 Sending notification to sales team")
-    print(f"🎁 Applying VIP customer benefits")
+    print(f"Processing {detail_type} from {event_source}")
+    
+    if detail_type == 'Order Placed':
+        # Send order confirmation
+        order_id = event_detail.get('orderId', 'unknown')
+        customer_id = event_detail.get('customerId', 'unknown')
+        amount = event_detail.get('amount', 0)
+        
+        print(f"📧 Sending order confirmation email")
+        print(f"  - To: Customer {customer_id}")
+        print(f"  - Subject: Order Confirmation - {order_id}")
+        print(f"  - Amount: ${amount}")
+        print(f"✅ Order confirmation sent for {order_id}")
+        
+    elif detail_type == 'Inventory Updated':
+        # Send inventory alerts if needed
+        product_id = event_detail.get('productId', 'unknown')
+        current_stock = event_detail.get('currentStock', 0)
+        threshold = event_detail.get('threshold', 10)
+        
+        if current_stock <= threshold:
+            print(f"📱 Sending low stock SMS alert")
+            print(f"  - Product: {product_id}")
+            print(f"  - Current Stock: {current_stock}")
+            print(f"  - To: Warehouse Manager")
+            print(f"✅ Low stock alert sent for {product_id}")
     
     return {
         'statusCode': 200,
-        'body': json.dumps('High-value order processing completed')
+        'body': json.dumps('Notification processing completed successfully')
     }
-EOF
+```
 
-zip high-value-processor.zip high_value_processor.py
+3. Deploy notification service:
+```bash
+zip notification-service.zip notification_service.py
 
 aws lambda create-function \
-  --function-name [your-username]-high-value-processor \
+  --function-name [your-username]-notification-service \
   --runtime python3.9 \
   --role arn:aws:iam::[ACCOUNT-ID]:role/[your-username]-event-producer-role \
-  --handler high_value_processor.lambda_handler \
-  --zip-file fileb://high-value-processor.zip \
+  --handler notification_service.lambda_handler \
+  --zip-file fileb://notification-service.zip \
   --timeout 30
 ```
 
-3. Create and configure the rule:
-```bash
-aws events put-rule \
-  --name "[your-username]-high-value-order-rule" \
-  --event-pattern file://high-value-pattern.json \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --description "Routes high-value orders for special processing"
+---
 
-aws events put-targets \
-  --rule "[your-username]-high-value-order-rule" \
-  --event-bus-name "[your-username]-ecommerce-events" \
-  --targets Id=1,Arn=arn:aws:lambda:us-east-1:[ACCOUNT-ID]:function:[your-username]-high-value-processor
+## Task 3: Configure Event Rules and Targets (Console)
 
-aws lambda add-permission \
-  --function-name [your-username]-high-value-processor \
-  --statement-id eventbridge-invoke-high-value \
-  --action lambda:InvokeFunction \
-  --principal events.amazonaws.com \
-  --source-arn arn:aws:events:us-east-1:[ACCOUNT-ID]:rule/[your-username]-ecommerce-events/[your-username]-high-value-order-rule
-```
+### Step 3.1: Create Order Processing Rule
 
-### Step 5.2: Test Filtered Events
+1. Navigate to **Amazon EventBridge** in the AWS Console
+2. Click **Rules** in the left navigation
+3. Click **Create rule**
+4. Configure the rule:
+   - **Name**: `[your-username]-order-processing-rule`
+   - **Description**: `Routes order placed events to processing functions`
+   - **Event bus**: Select `[your-username]-ecommerce-events`
+   - **Rule type**: Rule with an event pattern
 
-1. Test with high-value order (should trigger both processors):
+5. Configure event pattern:
+   - **Event source**: Custom
+   - **Event pattern**: Click **Edit pattern** and enter:
+   ```json
+   {
+     "source": ["ecommerce.orders"],
+     "detail-type": ["Order Placed"]
+   }
+   ```
+   - Click **Save**
+
+6. Configure targets:
+   - Click **Add target**
+   - **Target type**: AWS service
+   - **Service**: Lambda function
+   - **Function**: `[your-username]-order-processor`
+   - Click **Add another target**
+   - **Target type**: AWS service  
+   - **Service**: Lambda function
+   - **Function**: `[your-username]-inventory-updater`
+   - Click **Add another target**
+   - **Target type**: AWS service
+   - **Service**: Lambda function
+   - **Function**: `[your-username]-notification-service`
+
+7. Click **Create rule**
+
+### Step 3.2: Create Inventory Processing Rule
+
+1. Click **Create rule**
+2. Configure the rule:
+   - **Name**: `[your-username]-inventory-processing-rule`
+   - **Description**: `Routes inventory update events to processing functions`
+   - **Event bus**: Select `[your-username]-ecommerce-events`
+   - **Rule type**: Rule with an event pattern
+
+3. Configure event pattern:
+   - **Event source**: Custom
+   - **Event pattern**: Click **Edit pattern** and enter:
+   ```json
+   {
+     "source": ["ecommerce.inventory"],
+     "detail-type": ["Inventory Updated"]
+   }
+   ```
+   - Click **Save**
+
+4. Configure targets:
+   - Click **Add target**
+   - **Target type**: AWS service
+   - **Service**: Lambda function
+   - **Function**: `[your-username]-inventory-updater`
+   - Click **Add another target**
+   - **Target type**: AWS service
+   - **Service**: Lambda function
+   - **Function**: `[your-username]-notification-service`
+
+5. Click **Create rule**
+
+### Step 3.3: Verify Rule Configuration (Console)
+
+1. In the EventBridge console, click **Rules**
+2. Select your event bus: `[your-username]-ecommerce-events`
+3. Verify both rules are listed and **Enabled**
+4. Click on each rule to review:
+   - Event pattern is correct
+   - All targets are configured
+   - Target permissions are granted
+
+---
+
+## Task 4: Test Event Flow
+
+### Step 4.1: Test Order Placed Event
+
+1. Test order placed event using your API:
 ```bash
 curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
   -H "Content-Type: application/json" \
   -d '{
     "eventType": "OrderPlaced",
-    "customerId": "vip-customer-001",
-    "amount": 299.99,
+    "customerId": "CUST-12345",
+    "amount": 129.99,
     "items": [
-      {"productId": "premium-laptop", "quantity": 1, "price": 299.99}
+      {"productId": "LAPTOP-001", "quantity": 1},
+      {"productId": "MOUSE-002", "quantity": 2}
     ]
   }'
 ```
 
-2. Test with low-value order (should only trigger regular processor):
+### Step 4.2: Test Inventory Update Event
+
+1. Test inventory update event:
+```bash
+curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "InventoryUpdate",
+    "productId": "LAPTOP-001",
+    "previousStock": 50,
+    "currentStock": 8,
+    "threshold": 10
+  }'
+```
+
+### Step 4.3: Monitor Event Processing (Console)
+
+1. Navigate to **CloudWatch** in the AWS Console
+2. Click **Log groups** in the left navigation
+3. Find and click on each Lambda function's log group:
+   - `/aws/lambda/[your-username]-order-processor`
+   - `/aws/lambda/[your-username]-inventory-updater`
+   - `/aws/lambda/[your-username]-notification-service`
+
+4. Click on the most recent log stream for each function
+5. Verify the events were processed correctly by reviewing the log entries
+
+6. Navigate back to **EventBridge** → **Rules**
+7. Click on each rule and then click the **Metrics** tab
+8. Verify that:
+   - **Invocations** shows successful executions
+   - **Matches** shows events that matched the pattern
+   - **Failed invocations** should be 0
+
+---
+
+## Task 5: Create CloudWatch Dashboard (Console)
+
+### Step 5.1: Create Event Monitoring Dashboard
+
+1. Navigate to **CloudWatch** in the AWS Console
+2. Click **Dashboards** in the left navigation
+3. Click **Create dashboard**
+4. **Dashboard name**: `[your-username]-eventbridge-monitoring`
+5. Click **Create dashboard**
+
+### Step 5.2: Add EventBridge Metrics
+
+1. Click **Add widget**
+2. Select **Line** chart type and click **Configure**
+3. **Metrics** tab:
+   - **Namespace**: AWS/Events
+   - **Metric name**: SuccessfulInvocations
+   - **RuleName**: Select both of your rules
+4. **Graphed metrics** tab:
+   - Set **Period** to 1 minute
+   - Set **Statistic** to Sum
+5. Click **Create widget**
+
+### Step 5.3: Add Lambda Function Metrics
+
+1. Click **Add widget**
+2. Select **Number** widget type and click **Configure**
+3. **Metrics** tab:
+   - **Namespace**: AWS/Lambda
+   - **Metric name**: Invocations
+   - **FunctionName**: Select all three of your Lambda functions
+4. **Graphed metrics** tab:
+   - Set **Period** to 5 minutes
+   - Set **Statistic** to Sum
+5. Click **Create widget**
+
+### Step 5.4: Add Error Monitoring
+
+1. Click **Add widget**
+2. Select **Line** chart type and click **Configure**
+3. **Metrics** tab:
+   - **Namespace**: AWS/Lambda
+   - **Metric name**: Errors
+   - **FunctionName**: Select all three of your Lambda functions
+4. **Graphed metrics** tab:
+   - Set **Period** to 1 minute
+   - Set **Statistic** to Sum
+5. Click **Create widget**
+
+6. Click **Save dashboard**
+
+---
+
+## Task 6: Advanced Event Filtering (Console)
+
+### Step 6.1: Create High-Value Order Rule
+
+1. Navigate back to **EventBridge** → **Rules**
+2. Click **Create rule**
+3. Configure the rule:
+   - **Name**: `[your-username]-high-value-orders`
+   - **Description**: `Special processing for high-value orders`
+   - **Event bus**: Select `[your-username]-ecommerce-events`
+   - **Rule type**: Rule with an event pattern
+
+4. Configure advanced event pattern:
+   - **Event pattern**: Click **Edit pattern** and enter:
+   ```json
+   {
+     "source": ["ecommerce.orders"],
+     "detail-type": ["Order Placed"],
+     "detail": {
+       "amount": [{"numeric": [">=", 100]}]
+     }
+   }
+   ```
+   - Click **Save**
+
+5. Configure target:
+   - **Target type**: AWS service
+   - **Service**: Lambda function
+   - **Function**: `[your-username]-notification-service`
+   - **Configure input**: Constant (JSON text)
+   - **JSON text**:
+   ```json
+   {
+     "alertType": "HIGH_VALUE_ORDER",
+     "priority": "urgent"
+   }
+   ```
+
+6. Click **Create rule**
+
+### Step 6.2: Test Advanced Filtering
+
+1. Test with a high-value order:
 ```bash
 curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
   -H "Content-Type: application/json" \
   -d '{
     "eventType": "OrderPlaced",
-    "customerId": "regular-customer-002",
+    "customerId": "CUST-VIP-001",
+    "amount": 1299.99,
+    "items": [
+      {"productId": "WORKSTATION-001", "quantity": 1}
+    ]
+  }'
+```
+
+2. Test with a regular order:
+```bash
+curl -X POST "https://[your-api-id].execute-api.us-east-1.amazonaws.com/prod/events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "OrderPlaced",
+    "customerId": "CUST-002",
     "amount": 29.99,
     "items": [
-      {"productId": "basic-accessory", "quantity": 1, "price": 29.99}
+      {"productId": "ACCESSORY-001", "quantity": 1}
     ]
   }'
 ```
 
+3. Monitor the CloudWatch logs to verify that:
+   - High-value orders trigger the special rule
+   - Regular orders only trigger the standard processing rules
+
 ---
 
-## Lab Verification
+## Task 7: Event Replay and Debugging (Console)
 
-### Verification Checklist
+### Step 7.1: Enable Event Replay
 
-Verify that you have successfully completed the following:
+1. Navigate to **EventBridge** → **Replays**
+2. Click **Create replay**
+3. Configure replay:
+   - **Name**: `[your-username]-order-replay`
+   - **Description**: `Replay order events for debugging`
+   - **Source**: `[your-username]-ecommerce-events`
+   - **Replay start time**: 1 hour ago
+   - **Replay end time**: Now
+   - **Destination**: `[your-username]-ecommerce-events`
 
-- [ ] Created a custom EventBridge event bus with username prefix
-- [ ] Deployed an event producer Lambda function and API Gateway
-- [ ] Created three event consumer Lambda functions (order, inventory, payment processors)
-- [ ] Configured EventBridge rules with proper event pattern matching
-- [ ] Successfully tested event publishing and consumption
-- [ ] Implemented advanced filtering for high-value orders
-- [ ] Monitored event flow through CloudWatch logs
-- [ ] Understood event-driven decoupling concepts
+4. **Event pattern** (optional):
+   ```json
+   {
+     "source": ["ecommerce.orders"]
+   }
+   ```
 
-### Expected Results
+5. Click **Create replay**
 
-Your event-driven architecture should:
-1. Accept events via API Gateway and publish them to EventBridge
-2. Route events to appropriate Lambda functions based on patterns
-3. Process events independently in each consumer function
-4. Handle multiple event types (OrderPlaced, PaymentProcessed, InventoryUpdated)
-5. Filter high-value orders for special processing
-6. Log all processing activities to CloudWatch
+### Step 7.2: Monitor Event Flow in Console
+
+1. Navigate to **EventBridge** → **Rules**
+2. Click on one of your rules
+3. Click the **Monitoring** tab to view:
+   - Successful invocations
+   - Failed invocations  
+   - Event pattern matches
+
+4. Navigate to **CloudWatch** → **Insights**
+5. **Log groups**: Select all your Lambda function log groups
+6. Run this query to analyze event processing:
+   ```
+   fields @timestamp, @message
+   | filter @message like /Processing/
+   | sort @timestamp desc
+   | limit 20
+   ```
 
 ---
 
@@ -840,25 +809,26 @@ Your event-driven architecture should:
 
 ### Common Issues and Solutions
 
-**Issue:** Events are published but not received by Lambda functions
-- **Solution:** Check EventBridge rule patterns and ensure they match event structure
-- Verify Lambda permissions for EventBridge invocation
-- Check event bus name consistency
+**Issue:** Events not reaching Lambda functions
+- **Console Check:** Verify rules are enabled in EventBridge Rules console
+- **Console Check:** Check target permissions in rule configuration
+- **Solution:** Re-add Lambda targets through the console to auto-configure permissions
 
-**Issue:** Lambda functions not triggering
-- **Solution:** Verify rule targets are correctly configured
-- Check IAM permissions for EventBridge to invoke Lambda
-- Ensure event source ARN matches rule ARN
+**Issue:** Event pattern not matching
+- **Console Debug:** Use EventBridge test pattern feature
+- Navigate to your rule → **Test pattern** tab
+- Paste a sample event to verify pattern matching
+- **Solution:** Adjust pattern syntax in rule configuration
 
-**Issue:** API Gateway returns errors
-- **Solution:** Check Lambda function permissions for API Gateway
-- Verify request payload format
-- Check CloudWatch logs for specific error messages
+**Issue:** Lambda functions not processing events correctly
+- **Console Monitor:** Check CloudWatch Logs for each function
+- **Console Check:** Verify function execution role permissions
+- **Solution:** Review function code and add error handling
 
-**Issue:** Events don't match patterns
-- **Solution:** Review event structure and pattern syntax
-- Use CloudWatch Events console to test patterns
-- Check for case sensitivity in event fields
+**Issue:** High error rates
+- **Console Monitor:** Use CloudWatch dashboard to identify patterns
+- **Console Debug:** Check X-Ray traces if enabled
+- **Solution:** Implement retry logic and dead letter queues
 
 ---
 
@@ -866,29 +836,32 @@ Your event-driven architecture should:
 
 To clean up resources after the lab:
 
+### Via Console:
+1. **EventBridge**: Delete rules, then delete custom event bus
+2. **Lambda**: Delete all three functions
+3. **API Gateway**: Delete the REST API
+4. **CloudWatch**: Delete the custom dashboard
+5. **IAM**: Delete the custom role
+
+### Via CLI:
 ```bash
+# Delete EventBridge rules and bus
+aws events delete-rule --name [your-username]-order-processing-rule --event-bus-name [your-username]-ecommerce-events
+aws events delete-rule --name [your-username]-inventory-processing-rule --event-bus-name [your-username]-ecommerce-events
+aws events delete-rule --name [your-username]-high-value-orders --event-bus-name [your-username]-ecommerce-events
+aws events delete-event-bus --name [your-username]-ecommerce-events
+
 # Delete Lambda functions
 aws lambda delete-function --function-name [your-username]-event-producer
 aws lambda delete-function --function-name [your-username]-order-processor
 aws lambda delete-function --function-name [your-username]-inventory-updater
-aws lambda delete-function --function-name [your-username]-payment-processor
-aws lambda delete-function --function-name [your-username]-high-value-processor
-
-# Delete EventBridge rules
-aws events remove-targets --rule [your-username]-order-processing-rule --event-bus-name [your-username]-ecommerce-events --ids 1
-aws events delete-rule --name [your-username]-order-processing-rule --event-bus-name [your-username]-ecommerce-events
-
-# Repeat for other rules...
-
-# Delete event bus
-aws events delete-event-bus --name [your-username]-ecommerce-events
+aws lambda delete-function --function-name [your-username]-notification-service
 
 # Delete API Gateway
 aws apigateway delete-rest-api --rest-api-id [your-api-id]
 
 # Delete IAM role
-aws iam detach-role-policy --role-name [your-username]-event-producer-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-aws iam delete-role-policy --role-name [your-username]-event-producer-role --policy-name EventBridgeAccess
+aws iam delete-role-policy --role-name [your-username]-event-producer-role --policy-name EventProducerPolicy
 aws iam delete-role --role-name [your-username]-event-producer-role
 ```
 
@@ -897,15 +870,15 @@ aws iam delete-role --role-name [your-username]-event-producer-role
 ## Key Takeaways
 
 From this lab, you should understand:
-1. **Event-Driven Architecture:** How to build loosely coupled, scalable systems
-2. **EventBridge Capabilities:** Custom buses, routing rules, and pattern matching
-3. **Fan-Out Pattern:** How single events can trigger multiple processing workflows
-4. **Event Filtering:** Advanced pattern matching for selective event processing
-5. **Decoupling Benefits:** How events enable independent service development and scaling
-6. **Monitoring:** Using CloudWatch to track event flow and processing
 
----
+1. **Event-Driven Architecture**: How to design loosely-coupled systems using EventBridge
+2. **Event Routing**: Creating rules and patterns to route events to appropriate consumers
+3. **Fan-Out Pattern**: How one event can trigger multiple processing workflows
+4. **Event Filtering**: Using advanced patterns to process only relevant events
+5. **Monitoring and Debugging**: Using CloudWatch and EventBridge console tools for observability
+6. **Console vs CLI**: When to use AWS Console for visual configuration and monitoring
+7. **Production Considerations**: Error handling, replay capabilities, and monitoring strategies
 
-## Next Steps
+### Next Steps
 
-In the next lab, you will explore queue and stream processing patterns to handle event ordering, retry logic, and batch processing scenarios.
+In the next lab, you will explore queue and stream processing patterns, implementing reliable event processing with Amazon SQS and Amazon Kinesis for high-throughput scenarios.
