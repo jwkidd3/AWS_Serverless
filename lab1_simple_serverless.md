@@ -137,7 +137,6 @@ aws lambda create-function \
 ```bash
 aws lambda invoke \
   --function-name [your-username]-hello-world-function \
-  --payload '{"httpMethod": "GET", "path": "/hello"}' \
   output.json
 ```
 
