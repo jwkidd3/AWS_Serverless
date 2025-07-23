@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developing Serverless Solutions on AWS - Chapter 2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/white.min.css">
+    <style>
+        .reveal .slides section {
+            text-align: left;
+            font-size: 0.7em;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        
+        .main-title {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #2c3e50;
+            padding: 1.5em;
+            text-align: center;
+            border-radius: 10px;
+            margin: 0.5em 0;
+        }
+        
+        .session-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.6em;
+            text-align: center;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 8px;
+            margin: 0.3em 0;
+        }
+        
+        .two-column {
+            display: flex;
+            gap: 1.5em;
+            align-items: flex-start;
+            margin: 0.5em 0;
+            flex: 1;
+        }
+        
+        .column {
+            flex: 1;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.8em;
+            margin: 0.5em 0;
+        }
+        
+        .feature-item {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 0.6em;
+            border-radius: 5px;
+        }
+        
+        .feature-item h4 {
+            margin: 0 0 0.3em 0;
+            color: #007bff;
+            font-size: 0.8em;
+        }
+        
+        .lab-callout {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 1em;
+            border-radius: 10px;
+            text-align: center;
+            margin: 0.5em 0;
+        }
+        
+        .lab-duration {
+            font-size: 0.9em;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.3em;
+            border-radius: 5px;
+            margin: 0.3em auto;
+            width: fit-content;
+        }
+        
+        .break-slide {
+            background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+            color: white;
+            padding: 1.5em;
+            border-radius: 15px;
+            text-align: center;
+            margin: 1em 0;
+        }
+        
+        .break-slide h2 {
+            font-size: 1.8em;
+            margin: 0;
+        }
+        
+        .key-concept {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 0.6em;
+            margin: 0.5em 0;
+        }
+        
+        .best-practice {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 0.6em;
+            margin: 0.5em 0;
+        }
+        
+        .bullet-point {
+            margin: 0.2em 0;
+            padding-left: 0.3em;
+            font-size: 0.7em;
+        }
+        
+        ul {
+            margin: 0.3em 0;
+            padding-left: 1em;
+        }
+        
+        li {
+            margin: 0.2em 0;
+            font-size: 0.7em;
+        }
+        
+        h1 {
+            font-size: 1.8em;
+            margin-bottom: 0.5em;
+        }
+        
+        h2 {
+            font-size: 1.2em;
+            margin-bottom: 0.5em;
+        }
+        
+        h3 {
+            font-size: 1em;
+            margin-bottom: 0.4em;
+        }
+        
+        h4 {
+            font-size: 0.85em;
+            margin-bottom: 0.3em;
+        }
+        
+        p {
+            font-size: 0.7em;
+            line-height: 1.2;
+            margin: 0.3em 0;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            
+            <!-- Slide 1: Title -->
+            <section>
+                <div class="main-title">
+                    <h1>Developing Serverless Solutions on AWS</h1>
+                    <h2>Functions, Orchestration, and Monitoring</h2>
+                </div>
+            </section>
+
+            <!-- Slide 2: Session Focus -->
+            <section>
+                <div class="session-header">Advanced Serverless Development</div>
+                <h2>Learning Goals</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h4>Lambda Optimization</h4>
+                        <p>Performance tuning and best practices</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Workflow Orchestration</h4>
+                        <p>AWS Step Functions patterns</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Observability</h4>
+                        <p>Monitoring and distributed tracing</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Security</h4>
+                        <p>Authentication and compliance</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 3: Session Schedule Part 1 -->
+            <section>
+                <h2>Session Schedule - Part 1</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>First Session</h3>
+                        <ul>
+                            <li class="bullet-point">Module 7: Lambda Functions</li>
+                            <li class="bullet-point">Lab 5: Function Optimization (60 min)</li>
+                            <li class="bullet-point">Module 8: Step Functions</li>
+                            <li class="bullet-point">Break</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Key Topics</h3>
+                        <ul>
+                            <li class="bullet-point">Cold start optimization</li>
+                            <li class="bullet-point">Error handling patterns</li>
+                            <li class="bullet-point">Workflow orchestration</li>
+                            <li class="bullet-point">State machine design</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 4: Session Schedule Part 2 -->
+            <section>
+                <h2>Session Schedule - Part 2</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Labs and Modules</h3>
+                        <ul>
+                            <li class="bullet-point">Lab 6: Step Functions (90 min)</li>
+                            <li class="bullet-point">Module 9: Observability</li>
+                            <li class="bullet-point">Lab 7: Monitoring (90 min)</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Final Session</h3>
+                        <ul>
+                            <li class="bullet-point">Module 10: Security</li>
+                            <li class="bullet-point">Lab 8: Security Controls (90 min)</li>
+                            <li class="bullet-point">Next session preview</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 5: Module 7 Introduction -->
+            <section>
+                <div class="session-header">Module 7: Writing Good Lambda Functions</div>
+                <h2>Lambda Optimization Focus Areas</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Performance</h3>
+                        <ul>
+                            <li class="bullet-point">Cold start reduction</li>
+                            <li class="bullet-point">Memory optimization</li>
+                            <li class="bullet-point">Connection pooling</li>
+                            <li class="bullet-point">Lambda layers</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Configuration</h3>
+                        <ul>
+                            <li class="bullet-point">Environment variables</li>
+                            <li class="bullet-point">Timeout settings</li>
+                            <li class="bullet-point">Versions and aliases</li>
+                            <li class="bullet-point">Concurrency limits</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 6: Lambda Error Handling -->
+            <section>
+                <h2>Lambda Error Handling Patterns</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Retry Strategies</h3>
+                        <ul>
+                            <li class="bullet-point">Exponential backoff</li>
+                            <li class="bullet-point">Dead letter queues</li>
+                            <li class="bullet-point">Partial failure handling</li>
+                            <li class="bullet-point">Circuit breakers</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>Lambda Lifecycle</h4>
+                            <p>Understanding initialization, execution, and cleanup phases</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 7: Lambda Best Practices -->
+            <section>
+                <h2>Lambda Development Best Practices</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Code Organization</h3>
+                        <ul>
+                            <li class="bullet-point">Separate handler from logic</li>
+                            <li class="bullet-point">Dependency injection</li>
+                            <li class="bullet-point">Proper logging</li>
+                            <li class="bullet-point">Exception handling</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Resource Management</h3>
+                        <ul>
+                            <li class="bullet-point">Initialize outside handler</li>
+                            <li class="bullet-point">Reuse connections</li>
+                            <li class="bullet-point">Optimize package size</li>
+                            <li class="bullet-point">Environment variables</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 8: Lab 5 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 5: Lambda Function Optimization</h2>
+                    <p>Performance tuning, error handling, and monitoring implementation</p>
+                    <div class="lab-duration">Duration: 60 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 9: Module 8 Introduction -->
+            <section>
+                <div class="session-header">Module 8: Step Functions for Orchestration</div>
+                <h2>Workflow Orchestration Overview</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Step Functions Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Visual workflow design</li>
+                            <li class="bullet-point">State machine patterns</li>
+                            <li class="bullet-point">Error handling</li>
+                            <li class="bullet-point">Parallel execution</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Workflow Types</h3>
+                        <ul>
+                            <li class="bullet-point">Standard workflows</li>
+                            <li class="bullet-point">Express workflows</li>
+                            <li class="bullet-point">Synchronous execution</li>
+                            <li class="bullet-point">Asynchronous execution</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 10: Step Functions State Types -->
+            <section>
+                <h2>Step Functions State Types</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Core States</h3>
+                        <ul>
+                            <li class="bullet-point">Task states</li>
+                            <li class="bullet-point">Choice states</li>
+                            <li class="bullet-point">Parallel states</li>
+                            <li class="bullet-point">Wait states</li>
+                            <li class="bullet-point">Map states</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>Callback Pattern</h4>
+                            <p>Human approval workflows and external system integration</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 11: Step Functions Patterns -->
+            <section>
+                <h2>Common Step Functions Patterns</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Design Patterns</h3>
+                        <ul>
+                            <li class="bullet-point">Sequential processing</li>
+                            <li class="bullet-point">Parallel fan-out</li>
+                            <li class="bullet-point">Human approval</li>
+                            <li class="bullet-point">Error compensation</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Integration Options</h3>
+                        <ul>
+                            <li class="bullet-point">Direct service integrations</li>
+                            <li class="bullet-point">Lambda orchestration</li>
+                            <li class="bullet-point">ECS task execution</li>
+                            <li class="bullet-point">SNS/SQS messaging</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 12: Break -->
+            <section>
+                <div class="break-slide">
+                    <h2>☕ 15-Minute Break</h2>
+                </div>
+            </section>
+
+            <!-- Slide 13: Lab 6 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 6: Workflow Orchestration</h2>
+                    <p>Build complex workflows with Step Functions</p>
+                    <div class="lab-duration">Duration: 90 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 14: Module 9 Introduction -->
+            <section>
+                <div class="session-header">Module 9: Observability and Monitoring</div>
+                <h2>Three Pillars of Observability</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h4>Metrics</h4>
+                        <p>Performance measurements</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Logs</h4>
+                        <p>Event records and debugging</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Traces</h4>
+                        <p>Request flow tracking</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Integration</h4>
+                        <p>Correlated system visibility</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 15: CloudWatch Overview -->
+            <section>
+                <h2>Amazon CloudWatch Capabilities</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Logs and Metrics</h3>
+                        <ul>
+                            <li class="bullet-point">Centralized log aggregation</li>
+                            <li class="bullet-point">Log Insights queries</li>
+                            <li class="bullet-point">Custom metrics</li>
+                            <li class="bullet-point">Embedded Metrics Format</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Alarms and Dashboards</h3>
+                        <ul>
+                            <li class="bullet-point">Threshold alerting</li>
+                            <li class="bullet-point">Composite alarms</li>
+                            <li class="bullet-point">Custom visualizations</li>
+                            <li class="bullet-point">Real-time monitoring</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 16: X-Ray Tracing -->
+            <section>
+                <h2>AWS X-Ray Distributed Tracing</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>X-Ray Features</h3>
+                        <ul>
+                            <li class="bullet-point">End-to-end tracing</li>
+                            <li class="bullet-point">Service map visualization</li>
+                            <li class="bullet-point">Performance analysis</li>
+                            <li class="bullet-point">Error debugging</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>ServiceLens</h4>
+                            <p>Unified view of traces, metrics, and logs</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 17: Lunch Break -->
+            <section>
+                <div class="break-slide">
+                    <h2>🍽️ Lunch Break</h2>
+                    <p>60 minutes</p>
+                </div>
+            </section>
+
+            <!-- Slide 18: Lab 7 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 7: Observability Implementation</h2>
+                    <p>CloudWatch monitoring and X-Ray tracing</p>
+                    <div class="lab-duration">Duration: 90 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 19: Module 10 Security -->
+            <section>
+                <div class="session-header">Module 10: Serverless Application Security</div>
+                <h2>Multi-Layer Security</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Identity Management</h3>
+                        <ul>
+                            <li class="bullet-point">IAM roles and policies</li>
+                            <li class="bullet-point">Resource-based policies</li>
+                            <li class="bullet-point">Cross-account access</li>
+                            <li class="bullet-point">Temporary credentials</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Data Protection</h3>
+                        <ul>
+                            <li class="bullet-point">Encryption in transit/rest</li>
+                            <li class="bullet-point">KMS key management</li>
+                            <li class="bullet-point">Secrets Manager</li>
+                            <li class="bullet-point">Parameter Store</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 20: Authentication Patterns -->
+            <section>
+                <h2>Authentication and Authorization</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Amazon Cognito</h3>
+                        <ul>
+                            <li class="bullet-point">User Pools</li>
+                            <li class="bullet-point">Identity Pools</li>
+                            <li class="bullet-point">Social federation</li>
+                            <li class="bullet-point">Multi-factor auth</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>API Gateway Security</h3>
+                        <ul>
+                            <li class="bullet-point">Lambda authorizers</li>
+                            <li class="bullet-point">Cognito authorizers</li>
+                            <li class="bullet-point">IAM authorization</li>
+                            <li class="bullet-point">JWT validation</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 21: Lab 8 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 8: Securing Serverless Applications</h2>
+                    <p>Authentication, authorization, and compliance</p>
+                    <div class="lab-duration">Duration: 90 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 22: Session Summary -->
+            <section>
+                <h2>Session Accomplishments</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Skills Developed</h3>
+                        <ul>
+                            <li class="bullet-point">Lambda optimization</li>
+                            <li class="bullet-point">Workflow orchestration</li>
+                            <li class="bullet-point">Monitoring implementation</li>
+                            <li class="bullet-point">Security controls</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Labs Completed</h3>
+                        <ul>
+                            <li class="bullet-point">Lab 5: Lambda Optimization</li>
+                            <li class="bullet-point">Lab 6: Step Functions</li>
+                            <li class="bullet-point">Lab 7: Observability</li>
+                            <li class="bullet-point">Lab 8: Security</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 23: Next Session Preview -->
+            <section>
+                <h2>Next Session Preview</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Advanced Topics</h3>
+                        <ul>
+                            <li class="bullet-point">Performance scaling</li>
+                            <li class="bullet-point">CI/CD automation</li>
+                            <li class="bullet-point">Advanced security</li>
+                            <li class="bullet-point">Integration project</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>Final Project</h4>
+                            <p>Team-based healthcare platform development</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 24: Thank You -->
+            <section>
+                <div class="main-title">
+                    <h2>Thank You!</h2>
+                    <p>Ready for the next session production patterns</p>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        Reveal.initialize({
+            hash: true,
+            controls: true,
+            progress: true,
+            center: false,
+            transition: 'slide'
+        });
+    </script>
+</body>
+</html>

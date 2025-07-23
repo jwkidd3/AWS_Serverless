@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developing Serverless Solutions on AWS - Chapter 3</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/white.min.css">
+    <style>
+        .reveal .slides section {
+            text-align: left;
+            font-size: 0.7em;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        
+        .main-title {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #2c3e50;
+            padding: 1.5em;
+            text-align: center;
+            border-radius: 10px;
+            margin: 0.5em 0;
+        }
+        
+        .session-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.6em;
+            text-align: center;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 8px;
+            margin: 0.3em 0;
+        }
+        
+        .two-column {
+            display: flex;
+            gap: 1.5em;
+            align-items: flex-start;
+            margin: 0.5em 0;
+            flex: 1;
+        }
+        
+        .column {
+            flex: 1;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.8em;
+            margin: 0.5em 0;
+        }
+        
+        .feature-item {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 0.6em;
+            border-radius: 5px;
+        }
+        
+        .feature-item h4 {
+            margin: 0 0 0.3em 0;
+            color: #007bff;
+            font-size: 0.8em;
+        }
+        
+        .lab-callout {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 1em;
+            border-radius: 10px;
+            text-align: center;
+            margin: 0.5em 0;
+        }
+        
+        .lab-duration {
+            font-size: 0.9em;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.3em;
+            border-radius: 5px;
+            margin: 0.3em auto;
+            width: fit-content;
+        }
+        
+        .break-slide {
+            background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+            color: white;
+            padding: 1.5em;
+            border-radius: 15px;
+            text-align: center;
+            margin: 1em 0;
+        }
+        
+        .break-slide h2 {
+            font-size: 1.8em;
+            margin: 0;
+        }
+        
+        .key-concept {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 0.6em;
+            margin: 0.5em 0;
+        }
+        
+        .best-practice {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 0.6em;
+            margin: 0.5em 0;
+        }
+        
+        .enterprise-focus {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 8px;
+            padding: 0.6em;
+            margin: 0.5em 0;
+        }
+        
+        .bullet-point {
+            margin: 0.2em 0;
+            padding-left: 0.3em;
+            font-size: 0.7em;
+        }
+        
+        ul {
+            margin: 0.3em 0;
+            padding-left: 1em;
+        }
+        
+        li {
+            margin: 0.2em 0;
+            font-size: 0.7em;
+        }
+        
+        h1 {
+            font-size: 1.8em;
+            margin-bottom: 0.5em;
+        }
+        
+        h2 {
+            font-size: 1.2em;
+            margin-bottom: 0.5em;
+        }
+        
+        h3 {
+            font-size: 1em;
+            margin-bottom: 0.4em;
+        }
+        
+        h4 {
+            font-size: 0.85em;
+            margin-bottom: 0.3em;
+        }
+        
+        p {
+            font-size: 0.7em;
+            line-height: 1.2;
+            margin: 0.3em 0;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            
+            <!-- Slide 1: Title -->
+            <section>
+                <div class="main-title">
+                    <h1>Developing Serverless Solutions on AWS</h1>
+                    <h2>Security, Scale, and Deployment Automation</h2>
+                </div>
+            </section>
+
+            <!-- Slide 2: Session Focus -->
+            <section>
+                <div class="session-header">Production-Ready Serverless Applications</div>
+                <h2>Learning Goals</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <h4>Performance & Scaling</h4>
+                        <p>High-scale production optimization</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>CI/CD Automation</h4>
+                        <p>Deployment pipeline automation</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Advanced Security</h4>
+                        <p>Enterprise security patterns</p>
+                    </div>
+                    <div class="feature-item">
+                        <h4>Integration Project</h4>
+                        <p>End-to-end enterprise solution</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 3: Session Schedule Part 1 -->
+            <section>
+                <h2>Session Schedule - Part 1</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>First Session</h3>
+                        <ul>
+                            <li class="bullet-point">Module 11: Scaling Applications</li>
+                            <li class="bullet-point">Lab 9: Performance Optimization (90 min)</li>
+                            <li class="bullet-point">Module 12: Deployment Pipelines</li>
+                            <li class="bullet-point">Break</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Key Topics</h3>
+                        <ul>
+                            <li class="bullet-point">Concurrency management</li>
+                            <li class="bullet-point">Auto-scaling patterns</li>
+                            <li class="bullet-point">CI/CD best practices</li>
+                            <li class="bullet-point">Deployment strategies</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 4: Session Schedule Part 2 -->
+            <section>
+                <h2>Session Schedule - Part 2</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Advanced Labs</h3>
+                        <ul>
+                            <li class="bullet-point">Lab 10: CI/CD Pipelines (90 min)</li>
+                            <li class="bullet-point">Lab 11: Advanced Security (90 min)</li>
+                            <li class="bullet-point">Lunch break</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Final Project</h3>
+                        <ul>
+                            <li class="bullet-point">Lab 12: Integration Project (165 min)</li>
+                            <li class="bullet-point">Team collaboration</li>
+                            <li class="bullet-point">Healthcare platform development</li>
+                            <li class="bullet-point">Professional presentations</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 5: Module 11 Introduction -->
+            <section>
+                <div class="session-header">Module 11: Handling Scale in Serverless Applications</div>
+                <h2>Scaling Considerations</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Lambda Scaling</h3>
+                        <ul>
+                            <li class="bullet-point">Concurrency management</li>
+                            <li class="bullet-point">Reserved concurrency</li>
+                            <li class="bullet-point">Provisioned concurrency</li>
+                            <li class="bullet-point">Cold start optimization</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>API Gateway Scaling</h3>
+                        <ul>
+                            <li class="bullet-point">Throttling configuration</li>
+                            <li class="bullet-point">Usage plans and quotas</li>
+                            <li class="bullet-point">Caching strategies</li>
+                            <li class="bullet-point">Regional endpoints</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 6: Event Source Scaling -->
+            <section>
+                <h2>Event Source Scaling Patterns</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>SQS Scaling</h3>
+                        <ul>
+                            <li class="bullet-point">Batch size optimization</li>
+                            <li class="bullet-point">Visibility timeout tuning</li>
+                            <li class="bullet-point">Concurrent executions</li>
+                            <li class="bullet-point">DLQ configuration</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Kinesis Scaling</h3>
+                        <ul>
+                            <li class="bullet-point">Shard management</li>
+                            <li class="bullet-point">Parallelization factor</li>
+                            <li class="bullet-point">Checkpoint management</li>
+                            <li class="bullet-point">Stream capacity modes</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 7: Performance Optimization -->
+            <section>
+                <h2>Performance Optimization Strategies</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Function Optimization</h3>
+                        <ul>
+                            <li class="bullet-point">Memory allocation tuning</li>
+                            <li class="bullet-point">Code optimization techniques</li>
+                            <li class="bullet-point">Connection reuse patterns</li>
+                            <li class="bullet-point">Lambda layers utilization</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="key-concept">
+                            <h4>Cost vs Performance</h4>
+                            <p>Balance cost optimization with performance requirements for production workloads</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 8: Lab 9 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 9: Performance and Scaling Optimization</h2>
+                    <p>Configure high-scale production scenarios and optimization</p>
+                    <div class="lab-duration">Duration: 90 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 9: Module 12 Introduction -->
+            <section>
+                <div class="session-header">Module 12: Automating the Deployment Pipeline</div>
+                <h2>CI/CD for Serverless</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Pipeline Components</h3>
+                        <ul>
+                            <li class="bullet-point">Source control integration</li>
+                            <li class="bullet-point">Automated testing stages</li>
+                            <li class="bullet-point">Build and package automation</li>
+                            <li class="bullet-point">Deployment automation</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Deployment Strategies</h3>
+                        <ul>
+                            <li class="bullet-point">Blue/green deployments</li>
+                            <li class="bullet-point">Canary releases</li>
+                            <li class="bullet-point">Rolling deployments</li>
+                            <li class="bullet-point">Feature toggles</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 10: AWS SAM and CDK -->
+            <section>
+                <h2>Serverless Deployment Tools</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>AWS SAM Features</h3>
+                        <ul>
+                            <li class="bullet-point">Local development and testing</li>
+                            <li class="bullet-point">Template-based deployment</li>
+                            <li class="bullet-point">Pipeline integration</li>
+                            <li class="bullet-point">Gradual deployments</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>AWS CDK Benefits</h3>
+                        <ul>
+                            <li class="bullet-point">Code-based infrastructure</li>
+                            <li class="bullet-point">Type safety and IDE support</li>
+                            <li class="bullet-point">Reusable constructs</li>
+                            <li class="bullet-point">Multi-stack deployments</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 11: Break -->
+            <section>
+                <div class="break-slide">
+                    <h2>☕ 15-Minute Break</h2>
+                </div>
+            </section>
+
+            <!-- Slide 12: Lab 10 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 10: Building CI/CD Pipelines</h2>
+                    <p>Create automated deployment workflows</p>
+                    <div class="lab-duration">Duration: 90 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 13: Advanced Security Patterns -->
+            <section>
+                <h2>Advanced Security Implementation</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Enterprise Security</h3>
+                        <ul>
+                            <li class="bullet-point">Multi-layer defense strategies</li>
+                            <li class="bullet-point">Zero trust architecture</li>
+                            <li class="bullet-point">Compliance automation</li>
+                            <li class="bullet-point">Threat detection</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Security Automation</h3>
+                        <ul>
+                            <li class="bullet-point">Automated security scanning</li>
+                            <li class="bullet-point">Policy enforcement</li>
+                            <li class="bullet-point">Incident response</li>
+                            <li class="bullet-point">Compliance reporting</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 14: Compliance and Governance -->
+            <section>
+                <h2>Compliance and Governance</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Compliance Frameworks</h3>
+                        <ul>
+                            <li class="bullet-point">HIPAA compliance patterns</li>
+                            <li class="bullet-point">GDPR data protection</li>
+                            <li class="bullet-point">SOC 2 controls</li>
+                            <li class="bullet-point">PCI DSS requirements</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="enterprise-focus">
+                            <h4>Governance Tools</h4>
+                            <p>AWS Config, CloudTrail, and GuardDuty for automated compliance monitoring</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 15: Lab 11 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 11: Advanced Security Implementation</h2>
+                    <p>Enterprise security patterns and compliance automation</p>
+                    <div class="lab-duration">Duration: 90 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 16: Lunch Break -->
+            <section>
+                <div class="break-slide">
+                    <h2>🍽️ Lunch Break</h2>
+                    <p>60 minutes</p>
+                </div>
+            </section>
+
+            <!-- Slide 17: Integration Project Introduction -->
+            <section>
+                <h2>End-to-End Integration Project</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Project Overview</h3>
+                        <ul>
+                            <li class="bullet-point">Healthcare management platform</li>
+                            <li class="bullet-point">Team-based development</li>
+                            <li class="bullet-point">HIPAA-compliant architecture</li>
+                            <li class="bullet-point">Production-ready implementation</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Integration Goals</h3>
+                        <ul>
+                            <li class="bullet-point">All course concepts applied</li>
+                            <li class="bullet-point">Real-world scenario</li>
+                            <li class="bullet-point">Professional presentation</li>
+                            <li class="bullet-point">Collaborative development</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 18: Project Architecture -->
+            <section>
+                <h2>Healthcare Platform Architecture</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Core Components</h3>
+                        <ul>
+                            <li class="bullet-point">Patient management system</li>
+                            <li class="bullet-point">Provider scheduling</li>
+                            <li class="bullet-point">Appointment workflows</li>
+                            <li class="bullet-point">Medical records storage</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Technical Requirements</h3>
+                        <ul>
+                            <li class="bullet-point">Serverless architecture</li>
+                            <li class="bullet-point">Security and compliance</li>
+                            <li class="bullet-point">Monitoring and alerting</li>
+                            <li class="bullet-point">CI/CD pipeline</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 19: Team Collaboration -->
+            <section>
+                <h2>Team Collaboration Approach</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Development Phases</h3>
+                        <ul>
+                            <li class="bullet-point">Architecture design (30 min)</li>
+                            <li class="bullet-point">Implementation (90 min)</li>
+                            <li class="bullet-point">Security & compliance (45 min)</li>
+                            <li class="bullet-point">Presentation prep (30 min)</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Team Structure</h3>
+                        <ul>
+                            <li class="bullet-point">Collaborative development</li>
+                            <li class="bullet-point">Shared responsibilities</li>
+                            <li class="bullet-point">Code review process</li>
+                            <li class="bullet-point">Documentation standards</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 20: Lab 12 Callout -->
+            <section>
+                <div class="lab-callout">
+                    <h2>🚀 Lab 12: End-to-End Integration Project</h2>
+                    <p>Comprehensive serverless solution development</p>
+                    <div class="lab-duration">Duration: 165 minutes</div>
+                </div>
+            </section>
+
+            <!-- Slide 21: Project Success Criteria -->
+            <section>
+                <h2>Project Success Criteria</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Technical Excellence</h3>
+                        <ul>
+                            <li class="bullet-point">Working application</li>
+                            <li class="bullet-point">Security implementation</li>
+                            <li class="bullet-point">Performance optimization</li>
+                            <li class="bullet-point">Monitoring and alerting</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Professional Delivery</h3>
+                        <ul>
+                            <li class="bullet-point">Clear documentation</li>
+                            <li class="bullet-point">Live demonstration</li>
+                            <li class="bullet-point">Architecture presentation</li>
+                            <li class="bullet-point">Best practices discussion</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 22: Course Wrap-up -->
+            <section>
+                <h2>Course Wrap-up and Integration</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Key Takeaways</h3>
+                        <ul>
+                            <li class="bullet-point">Serverless architecture mastery</li>
+                            <li class="bullet-point">Production deployment patterns</li>
+                            <li class="bullet-point">Security best practices</li>
+                            <li class="bullet-point">Operational excellence</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Continued Learning</h3>
+                        <ul>
+                            <li class="bullet-point">Community engagement</li>
+                            <li class="bullet-point">Resource compilation</li>
+                            <li class="bullet-point">Next steps planning</li>
+                            <li class="bullet-point">Professional development</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 23: Session Accomplishments -->
+            <section>
+                <h2>Session Accomplishments</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Advanced Skills</h3>
+                        <ul>
+                            <li class="bullet-point">Performance optimization</li>
+                            <li class="bullet-point">CI/CD automation</li>
+                            <li class="bullet-point">Advanced security</li>
+                            <li class="bullet-point">Enterprise integration</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <h3>Labs Completed</h3>
+                        <ul>
+                            <li class="bullet-point">Lab 9: Performance Optimization</li>
+                            <li class="bullet-point">Lab 10: CI/CD Pipelines</li>
+                            <li class="bullet-point">Lab 11: Advanced Security</li>
+                            <li class="bullet-point">Lab 12: Integration Project</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 24: Final Q&A -->
+            <section>
+                <h2>Final Q&A and Course Evaluation</h2>
+                <div class="two-column">
+                    <div class="column">
+                        <h3>Discussion Topics</h3>
+                        <ul>
+                            <li class="bullet-point">Production challenges</li>
+                            <li class="bullet-point">Best practices learned</li>
+                            <li class="bullet-point">Architecture decisions</li>
+                            <li class="bullet-point">Future recommendations</li>
+                        </ul>
+                    </div>
+                    <div class="column">
+                        <div class="best-practice">
+                            <h4>Course Completion</h4>
+                            <p>Congratulations on mastering enterprise serverless development!</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 25: Thank You -->
+            <section>
+                <div class="main-title">
+                    <h2>Thank You!</h2>
+                    <p>Enterprise serverless mastery achieved</p>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        Reveal.initialize({
+            hash: true,
+            controls: true,
+            progress: true,
+            center: false,
+            transition: 'slide'
+        });
+    </script>
+</body>
+</html>
